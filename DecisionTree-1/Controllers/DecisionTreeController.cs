@@ -17,27 +17,27 @@ public class DecisionTreeController : ControllerBase
     [HttpGet]
     public IActionResult Play1()
     {
-        string file = "Files/play1.xlsx";
-        string target = "Play";
+        string putanjaDoFajla = "Files/play1.xlsx";
+        string ciljnaVarijabla = "Play";
 
-        return Pokreni(file, target);
+        return Pokreni(putanjaDoFajla, ciljnaVarijabla);
     }
 
     [HttpGet]
     public IActionResult Sales()
     {
-        string file = "Files/Sales3.xlsx";
-        string target = "OutletSize";
+        string putanjaDoFajla = "Files/Sales3.xlsx";
+        string ciljnaVarijabla = "OutletSize";
 
-        return Pokreni(file, target);
+        return Pokreni(putanjaDoFajla, ciljnaVarijabla);
     }
 
     [HttpGet]
-    public IActionResult Pokreni([FromQuery] string file, [FromQuery] string target, [FromQuery] double testProcenat = 0.2)
+    public IActionResult Pokreni([FromQuery] string putanjaDoFajla, [FromQuery] string ciljnaVarijabla, [FromQuery] double testProcenat = 0.2)
     {
-        MojDataSet fullDataSet = _ucitavac.Ucitaj(file, target);
+        MojDataSet fullDataSet = _ucitavac.Ucitaj(putanjaDoFajla, ciljnaVarijabla);
 
-        (MojDataSet? treningSet, MojDataSet? testSet) = fullDataSet.Podijeli(testProcenat);
+        (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(testProcenat);
 
         StabloKlasifikator stablo = new StabloKlasifikator(treningSet);
 
