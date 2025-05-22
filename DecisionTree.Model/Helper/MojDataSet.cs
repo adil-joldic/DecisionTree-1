@@ -54,8 +54,11 @@ public class MojDataSet
     }
 
     // ✂️ Funkcija za nasumično dijeljenje na trening i test skup
-    public (MojDataSet Train, MojDataSet Test) Podijeli(double testProcenat = 0.2)
+    public (MojDataSet Train, MojDataSet Test) Podijeli(double testProcenat = 0.2, int? random_state = null)
     {
+        // todo: za isti random_stati treba dobiti isti rezultat
+        // ako je random_state null, koristi se trenutni sistemski random
+
         var rnd = new Random();
         var izmijesano = Podaci.OrderBy(x => rnd.Next()).ToList();
         int granica = (int)(Podaci.Count * (1 - testProcenat));

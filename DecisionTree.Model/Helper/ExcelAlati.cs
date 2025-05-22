@@ -1,6 +1,6 @@
 ﻿using OfficeOpenXml;
 namespace DecisionTree.Model.Helper;
-public class ExcelUcitaj
+public class ExcelAlati
 {
     public MojDataSet Ucitaj(string putanja, string nazivCiljneKolone)
     {
@@ -8,9 +8,7 @@ public class ExcelUcitaj
 
             throw new Exception("Excel fajl nije pronađen.");
 
-        // If you are a Noncommercial organization.
-        ExcelPackage.License.SetNonCommercialOrganization("My Noncommercial organization"); //This will also set the Company property to the organization name provided in the argument.
-
+        ExcelPackage.License.SetNonCommercialOrganization("FIT education");
 
         using var paket = new ExcelPackage(new FileInfo(putanja));
         var lista = paket.Workbook.Worksheets[0];

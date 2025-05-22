@@ -2,6 +2,8 @@
 
 public class EvaluacijaRezultat
 {
+    //https://medium.com/analytics-vidhya/confusion-matrix-accuracy-precision-recall-f1-score-ade299cf63cd
+
     public double Accuracy { get; set; }
 
     // TODO: Dodati detaljne evaluacione metrike

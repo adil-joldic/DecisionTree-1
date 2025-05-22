@@ -7,9 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]/[action]")]
 public class DecisionTreeController : ControllerBase
 {
-    private readonly ExcelUcitaj _ucitavac;
+    private readonly ExcelAlati _ucitavac;
 
-    public DecisionTreeController(ExcelUcitaj ucitavac)
+    public DecisionTreeController(ExcelAlati ucitavac)
     {
         _ucitavac = ucitavac;
     }
@@ -33,11 +33,11 @@ public class DecisionTreeController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult Pokreni([FromQuery] string file, [FromQuery] string target)
+    public IActionResult Pokreni([FromQuery] string file, [FromQuery] string target, [FromQuery] double testProcenat = 0.2)
     {
         MojDataSet fullDataSet = _ucitavac.Ucitaj(file, target);
 
-        (MojDataSet? treningSet, MojDataSet? testSet) = fullDataSet.Podijeli();
+        (MojDataSet? treningSet, MojDataSet? testSet) = fullDataSet.Podijeli(testProcenat);
 
         StabloKlasifikator stablo = new StabloKlasifikator(treningSet);
 
