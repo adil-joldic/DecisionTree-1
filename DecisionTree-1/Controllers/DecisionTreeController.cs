@@ -1,5 +1,6 @@
 ﻿namespace DecisionTree_1.Controllers;
 
+using DecisionTree.Model.Helper;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -34,16 +35,19 @@ public class DecisionTreeController : ControllerBase
     [HttpGet]
     public IActionResult Pokreni([FromQuery] string file, [FromQuery] string target)
     {
-        MojDataSet skup = _ucitavac.Ucitaj(file, target);
-        (List<RedPodatka> trening, List<RedPodatka> test) = skup.Podijeli();
-        CvorStabla stablo = new StabloOdlučivanja().IzgradiStablo(trening, skup.Atributi);
-        double tacnost = skup.IzracunajTacnost(stablo, test);
+        MojDataSet fullDataSet = _ucitavac.Ucitaj(file, target);
+
+        (MojDataSet? treningSet, MojDataSet? testSet) = fullDataSet.Podijeli();
+
+        StabloKlasifikator stablo = new StabloKlasifikator(treningSet);
+
+        var x  = fullDataSet.Evaluiraj(stablo, testSet);
 
         return Ok(new
         {
-            Tacnost = $"{tacnost * 100:F2}%",
-            UkupnoTestiranih = test.Count,
-            UspjesnoPredvidjeno = (int)(tacnost * test.Count)
+            Tacnost = $"{x.Accuracy * 100:F2}%",
+            UkupnoTestiranih = testSet.Podaci.Count,
+            UspjesnoPredvidjeno = (int)(x.Accuracy * testSet.Podaci.Count)
         });
     }
 }

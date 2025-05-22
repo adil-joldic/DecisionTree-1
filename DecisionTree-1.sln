@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.36105.23 d17.13
+VisualStudioVersion = 17.13.36105.23
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionTree-1", "DecisionTree-1\DecisionTree-1.csproj", "{7F220902-4F39-44D2-93FC-FC851C10F92A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionTree.API", "DecisionTree-1\DecisionTree.API.csproj", "{7F220902-4F39-44D2-93FC-FC851C10F92A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionTree.Model", "DecisionTree.Model\DecisionTree.Model.csproj", "{1FDA419F-930B-4DDE-A701-B7A3607A4776}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{7F220902-4F39-44D2-93FC-FC851C10F92A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7F220902-4F39-44D2-93FC-FC851C10F92A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7F220902-4F39-44D2-93FC-FC851C10F92A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1FDA419F-930B-4DDE-A701-B7A3607A4776}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1FDA419F-930B-4DDE-A701-B7A3607A4776}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1FDA419F-930B-4DDE-A701-B7A3607A4776}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1FDA419F-930B-4DDE-A701-B7A3607A4776}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,10 +1,10 @@
 ﻿using OfficeOpenXml;
-
+namespace DecisionTree.Model.Helper;
 public class ExcelUcitaj
 {
     public MojDataSet Ucitaj(string putanja, string nazivCiljneKolone)
     {
-        if (!System.IO.File.Exists(putanja))
+        if (!File.Exists(putanja))
 
             throw new Exception("Excel fajl nije pronađen.");
 
@@ -50,6 +50,6 @@ public class ExcelUcitaj
             }
         }
 
-        return new MojDataSet(podaci);
+        return new MojDataSet(podaci, nazivCiljneKolone);
     }
 }
