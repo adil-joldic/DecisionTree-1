@@ -41,13 +41,13 @@ public class StabloKlasifikator : IKlasifikator
 
     public StabloKlasifikator(MojDataSet podaci)
     {
-        _korijen = RekuzijaIzgradiStablo(podaci.Podaci, podaci.Atributi);
+        _korijen = IzgradiStabloRekurzija(podaci.Podaci, podaci.Atributi);
     }
 
     /// <summary>
     /// Rekurzivno gradi stablo odlučivanja iz skupa podataka koristeći samo kategorijske atribute.
     /// </summary>
-    private CvorStabla RekuzijaIzgradiStablo(List<RedPodatka> podaci, List<AtributMeta> atributi)
+    private CvorStabla IzgradiStabloRekurzija(List<RedPodatka> podaci, List<AtributMeta> atributi)
     {
         // Ako svi redovi imaju istu klasu – vrati list sa tom klasom
         if (podaci.Select(p => p.Klasa).Distinct().Count() == 1)
@@ -58,7 +58,7 @@ public class StabloKlasifikator : IKlasifikator
             return new CvorStabla { Klasa = NajcescaKlasa(podaci) };
 
         // Ukloni numeričke atribute
-        var kandidati = atributi.Where(a => a.Tip == TipAtributa.Kategorijski).ToList();
+        var kandidati = atributi.Where(a => a.TipAtributa == TipAtributa.Kategoricki).ToList();
         if (!kandidati.Any())
             return new CvorStabla { Klasa = NajcescaKlasa(podaci) };
 
@@ -90,7 +90,7 @@ public class StabloKlasifikator : IKlasifikator
             var preostali = kandidati.Where(a => a.Naziv != najbolji).ToList();
 
             cvor.Djeca[vr] = podskup.Any()
-                ? RekuzijaIzgradiStablo(podskup, preostali)
+                ? IzgradiStabloRekurzija(podskup, preostali)
                 : new CvorStabla { Klasa = NajcescaKlasa(podaci) };
         }
 
@@ -133,22 +133,22 @@ public class StabloKlasifikator : IKlasifikator
 
         return gini;
     }
-    public string Predikcija(Dictionary<string, string> atributi)
+    public string Predikcija(RedPodatka red)
     {
-        return PredikcijaRekurzivno(_korijen, atributi);
+        return PredikcijaRekurzivno(_korijen, red);
     }
 
-    private string PredikcijaRekurzivno(CvorStabla cvor, Dictionary<string, string> atributi)
+    private string PredikcijaRekurzivno(CvorStabla cvor, RedPodatka red)
     {
         if (cvor.JeList)
             return cvor.Klasa!;
 
-        if (!atributi.ContainsKey(cvor.Atribut!))
+        if (!red.Atributi.ContainsKey(cvor.Atribut!))
             return "Nepoznato";
 
-        var vrijednost = atributi[cvor.Atribut!];
+        var vrijednost = red.Atributi[cvor.Atribut!];
         if (cvor.Djeca.TryGetValue(vrijednost, out var dijete))
-            return PredikcijaRekurzivno(dijete, atributi);
+            return PredikcijaRekurzivno(dijete, red);
         else
             return "Nepoznato";
     }

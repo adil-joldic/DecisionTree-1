@@ -15,7 +15,7 @@ public class DecisionTreeController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult Play1()
+    public IActionResult Play()
     {
         string putanjaDoFajla = "Files/play1.xlsx";
         string ciljnaVarijabla = "Play";
@@ -26,8 +26,8 @@ public class DecisionTreeController : ControllerBase
     [HttpGet]
     public IActionResult Sales()
     {
-        string putanjaDoFajla = "Files/Sales3.xlsx";
-        string ciljnaVarijabla = "OutletSize";
+        string putanjaDoFajla = "Files/Sales4.xlsx";
+        string ciljnaVarijabla = "SalesCategory";
 
         return Pokreni(putanjaDoFajla, ciljnaVarijabla);
     }
@@ -41,13 +41,11 @@ public class DecisionTreeController : ControllerBase
 
         StabloKlasifikator stablo = new StabloKlasifikator(treningSet);
 
-        var x  = fullDataSet.Evaluiraj(stablo, testSet);
+        EvaluacijaRezultat rezultat  = fullDataSet.Evaluiraj(stablo, testSet);
 
         return Ok(new
         {
-            Tacnost = $"{x.Accuracy * 100:F2}%",
-            UkupnoTestiranih = testSet.Podaci.Count,
-            UspjesnoPredvidjeno = (int)(x.Accuracy * testSet.Podaci.Count)
+            rezultat
         });
     }
 }

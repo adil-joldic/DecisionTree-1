@@ -3,14 +3,14 @@ using DecisionTree.Model.Model;
 
 public enum TipAtributa
 {
-    Kategorijski,
-    Numerički
+    Kategoricki,
+    Numericki
 }
 
 public class AtributMeta
 {
     public string Naziv { get; set; } = string.Empty;
-    public TipAtributa Tip { get; set; } = TipAtributa.Kategorijski;
+    public TipAtributa TipAtributa { get; set; } = TipAtributa.Kategoricki;
     public bool IsDeleted { get; set; } = false;
 }
 
@@ -44,12 +44,14 @@ public class MojDataSet
         CiljnaKolona = ciljnaKolona;
 
         Atributi = podaci[0].Atributi
-            .Select(kv => new AtributMeta
+            .Select(kvp => new AtributMeta
             {
-                Naziv = kv.Key,
-                Tip = podaci.All(p => double.TryParse(p.Atributi[kv.Key], out _))
-                        ? TipAtributa.Numerički
-                        : TipAtributa.Kategorijski
+                Naziv = kvp.Key,
+                TipAtributa = podaci
+                        .Where(p => !string.IsNullOrWhiteSpace(p.Atributi[kvp.Key]))
+                        .All(p => double.TryParse(p.Atributi[kvp.Key], out _))
+                            ? TipAtributa.Numericki
+                            : TipAtributa.Kategoricki
             }).ToList();
     }
 
@@ -58,6 +60,8 @@ public class MojDataSet
     {
         // todo: za isti random_stati treba dobiti isti rezultat
         // ako je random_state null, koristi se trenutni sistemski random
+        //todo: implementirati podjelu sa random_state, da bude konzistentno
+        var random = new Random(random_state ?? DateTime.Now.Millisecond);
 
         var rnd = new Random();
         var izmijesano = Podaci.OrderBy(x => rnd.Next()).ToList();
@@ -75,27 +79,57 @@ public class MojDataSet
     // 📊 Funkcija za izračun tačnosti predikcije
     public EvaluacijaRezultat Evaluiraj(IKlasifikator klasifikator, MojDataSet testSkup)
     {
+        var rezultat = new EvaluacijaRezultat();
+
         int tacni = 0;
+        int ukupno = testSkup.Podaci.Count;
 
         foreach (var red in testSkup.Podaci)
         {
-            var predikcija = klasifikator.Predikcija(red.Atributi);
-            if (predikcija == red.Klasa)
+            string stvarna = red.Klasa;
+            string predikcija = klasifikator.Predikcija(red);
+
+            // Broj stvarnih po klasama
+            if (!rezultat.SveKlase.ContainsKey(stvarna))
+                rezultat.SveKlase[stvarna] = 0;
+            rezultat.SveKlase[stvarna]++;
+
+            // Confusion matrix: ključ kao string "stvarna=>predikcija"
+            string kljuc = $"{stvarna}=>{predikcija}";
+            if (!rezultat.ConfusionMatrix.ContainsKey(kljuc))
+                rezultat.ConfusionMatrix[kljuc] = 0;
+            rezultat.ConfusionMatrix[kljuc]++;
+
+            if (stvarna == predikcija)
                 tacni++;
         }
 
-        var rezultat = new EvaluacijaRezultat
+        foreach (var klasa in rezultat.SveKlase.Keys)
         {
-            Accuracy = (double)tacni / testSkup.Podaci.Count,
+            int tp = rezultat.ConfusionMatrix.TryGetValue($"{klasa}=>{klasa}", out var valTP) ? valTP : 0;
 
-            // TODO: Implementirati sljedeće metrike
-            Precision = new (),
-            Recall = new(),
-            F1Score = new(),
-            ConfusionMatrix = new(),
-            SveKlase = new ()
-        };
+            int fp = rezultat.ConfusionMatrix
+                .Where(kvp => kvp.Key.EndsWith($"=>{klasa}") && !kvp.Key.StartsWith($"{klasa}=>"))
+                .Sum(kvp => kvp.Value);
+
+            int fn = rezultat.ConfusionMatrix
+                .Where(kvp => kvp.Key.StartsWith($"{klasa}=>") && !kvp.Key.EndsWith($"=>{klasa}"))
+                .Sum(kvp => kvp.Value);
+
+            double prec = (tp + fp) > 0 ? tp / (double)(tp + fp) : 0;
+            double rec = (tp + fn) > 0 ? tp / (double)(tp + fn) : 0;
+            double f1 = (prec + rec) > 0 ? 2 * prec * rec / (prec + rec) : 0;
+
+            rezultat.Precision[klasa] = prec;
+            rezultat.Recall[klasa] = rec;
+            rezultat.F1Score[klasa] = f1;
+        }
+
+        rezultat.Accuracy = tacni / (double)ukupno;
+        rezultat.UkupnoTestiranih = ukupno;
+        rezultat.UspjesnoPredvidjeno = tacni;
 
         return rezultat;
     }
+
 }

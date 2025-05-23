@@ -7,5 +7,5 @@ public interface IKlasifikator
     /// </summary>
     /// <param name="atributi">Ulazni atributi podatka</param>
     /// <returns>Naziv predikcije (klase)</returns>
-    string Predikcija(Dictionary<string, string> atributi);
+    string Predikcija(RedPodatka red);
 }
