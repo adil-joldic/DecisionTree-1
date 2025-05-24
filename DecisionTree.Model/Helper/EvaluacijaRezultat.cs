@@ -5,7 +5,7 @@ public class EvaluacijaRezultat
     //https://medium.com/analytics-vidhya/confusion-matrix-accuracy-precision-recall-f1-score-ade299cf63cd
 
     public required string Klasifikator { get; set; }
-    public List<string> Historija { get; set; } = [];
+    public required List<string> Historija { get; set; } = [];
     public required object Parametri { get; set; } = new();    
     public int UkupnoTestiranih { get; set; }
     public int UspjesnoPredvidjeno { get; set; }
@@ -20,6 +20,9 @@ public class EvaluacijaRezultat
     public Dictionary<string, int> ConfusionMatrix { get; set; } = new();
     public Dictionary<string, int> SveKlase { get; set; } = new(); // broj stvarnih po klasama
 
+    public required List<AtributMeta> AtributiMeta { get; set; } = new();
+    public double VrijemeEvaluacijeSek { get; internal set; }
+    public double VrijemeTreniranjaSek { get; internal set; }
 
     public void Ispisi()
     {

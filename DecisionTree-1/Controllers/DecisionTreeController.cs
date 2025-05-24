@@ -1,6 +1,7 @@
 ﻿namespace DecisionTree_1.Controllers;
 
 using DecisionTree.Model.Helper;
+using DecisionTree.Model.Model;
 using Microsoft.AspNetCore.Mvc;
 using static StabloKlasifikator;
 
@@ -49,7 +50,7 @@ public class DecisionTreeController : ControllerBase
     [HttpGet]
     public IActionResult Sales()
     {
-        return Pokreni(new()
+        StabloZahtjev zahtjev = new()
         {
             PutanjaDoFajla = "Files/Sales3.xlsx",
             CiljnaVarijabla = "SalesCategory",
@@ -59,6 +60,33 @@ public class DecisionTreeController : ControllerBase
                 MaxDepth = 5,
                 MinSamples = 5
             }
+        };
+
+        MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla, zahtjev.CiljnaVarijabla);
+
+        var (q1, q3) = KvartilaHelper.IzracunajKvartile(fullDataSet.Podaci, "OutletSales");
+
+        fullDataSet.DodajKolonuKategorijski("SalesCategory", red =>
+        {
+            if (!red.Atributi.TryGetValue("OutletSales", out var attr) || !attr.Broj.HasValue)
+                return null;
+
+            var val = attr.Broj.Value;
+            if (val < q1) return "Low";
+            if (val > q3) return "High";
+            return "Medium";
+        });
+
+        fullDataSet.CiljnaKolona = "SalesCategory";
+
+        (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
+
+        StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
+        EvaluacijaRezultat rezultat = fullDataSet.Evaluiraj(stablo, testSet);
+
+        return Ok(new
+        {
+            rezultat,
         });
     }
 
@@ -97,28 +125,14 @@ public class DecisionTreeController : ControllerBase
     public IActionResult Pokreni(
         [FromQuery] StabloZahtjev zahtjev)
     {
-
         MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla, zahtjev.CiljnaVarijabla);
         (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
 
-        var stopwatchTreniranje = System.Diagnostics.Stopwatch.StartNew();
-
-            StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
-
-        stopwatchTreniranje.Stop();
-
-        var stopwatchEvaluacija = System.Diagnostics.Stopwatch.StartNew();
-
-            EvaluacijaRezultat rezultat = fullDataSet.Evaluiraj(stablo, testSet);
-
-        stopwatchEvaluacija.Stop();
-
+        StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
+        EvaluacijaRezultat rezultat = fullDataSet.Evaluiraj(stablo, testSet);
 
         return Ok(new
         {
-            vrijemeTreniranja_ms = stopwatchTreniranje.ElapsedMilliseconds,
-            vrijemeEvaluacije_ms = stopwatchEvaluacija.ElapsedMilliseconds,
-            ukupnoVrijeme_ms = stopwatchTreniranje.ElapsedMilliseconds + stopwatchEvaluacija.ElapsedMilliseconds,
             rezultat,
         });
     }

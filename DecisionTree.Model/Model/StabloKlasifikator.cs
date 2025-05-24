@@ -105,12 +105,16 @@ public class StabloKlasifikator : IKlasifikator
     public override object Parametri => StabloParamteri;
 
     public StabloKlasifikatorParamteri StabloParamteri { get; }
+
     public StabloKlasifikator(MojDataSet podaci, StabloKlasifikatorParamteri stabloParamteri)
     {
         ArgumentNullException.ThrowIfNull(podaci, nameof(podaci));
         ArgumentNullException.ThrowIfNull(stabloParamteri, nameof(stabloParamteri));
+        var stopwatchTreniranje = System.Diagnostics.Stopwatch.StartNew();
         StabloParamteri = stabloParamteri;
         _korijen = IzgradiStabloRekurzija(podaci.Podaci, podaci.Atributi, trenutnaDubina: 0);
+        stopwatchTreniranje.Stop();
+        this.VrijemeTreniranjaSek = stopwatchTreniranje.ElapsedMilliseconds / 1000.0;
     }
     private CvorStabla IzgradiStabloRekurzija(
      List<RedPodatka> podaci,

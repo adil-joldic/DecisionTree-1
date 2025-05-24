@@ -4,6 +4,8 @@ public abstract class IKlasifikator
 {
     public abstract string Naziv { get; }
     public abstract object Parametri { get; }
+    public double VrijemeTreniranjaSek { get; init; }
+
     /// <summary>
     /// Vraća naziv klase na osnovu atributa.
     /// </summary>

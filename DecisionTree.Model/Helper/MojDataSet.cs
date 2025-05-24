@@ -1,5 +1,7 @@
 ﻿using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
+using static AtributMeta;
+using static AtributMeta.KategorickiInfo;
 
 public enum TipAtributa
 {
@@ -41,6 +43,26 @@ public class VrijednostAtributa
 
 public class AtributMeta
 {
+    public class NumerickiInfo
+    {
+        public required double? Min { get; set; }
+        public required double? Max { get; set; }
+        public required double? SrednjaVrijednost { get; set; }
+        public required double? StandardnaDevijacija { get; set; }
+    }
+
+    public class KategorickiInfo
+    {
+        public class VrijednostBrojac
+        {
+            public required string Vrijednost { get; set; }
+            public required int BrojPojavljivanja { get; set; }
+        }
+
+        public required int BrojRazlicitihVrijednosti { get; set; }
+        public required List<VrijednostBrojac> Top5Najcescih { get; set; }
+    }
+
     public required string Naziv { get; init; }
     public required TipAtributa TipAtributa { get; init; }
 
@@ -48,6 +70,9 @@ public class AtributMeta
     /// Označava da li se ovaj atribut koristi za učenje modela i predikciju.
     /// </summary>
     public bool KoristiZaModel { get; set; } = true;
+
+    public NumerickiInfo? Numericki { get; set; }
+    public KategorickiInfo? Kategoricki { get; set; }
 }
 
 public class RedPodatka
@@ -80,6 +105,7 @@ public class MojDataSet
         CiljnaKolona = ciljnaKolona;
         Atributi = atributi;
         IskljuciAtribute("ID"); // Isključujemo ID ako postoji
+        Analiziraj();
     }
 
     public MojDataSet DodajHistorijskiZapis(string historijskiZapis)
@@ -91,7 +117,7 @@ public class MojDataSet
     {
         foreach (var meta in Atributi)
         {
-            if (nazivi.Contains(meta.Naziv.ToUpper()))
+            if (nazivi.Contains(meta.Naziv))
             {
                 if (meta.KoristiZaModel)
                 {
@@ -127,10 +153,15 @@ public class MojDataSet
         {
             Klasifikator = klasifikator.Naziv,
             Parametri = klasifikator.Parametri,
+            Historija = [..testSkup.Historija],
+            AtributiMeta = [.. testSkup.Atributi],
+            VrijemeTreniranjaSek = klasifikator.VrijemeTreniranjaSek
         };
 
         int tacni = 0;
         int ukupno = testSkup.Podaci.Count;
+
+        var stopwatchEvaluacija = System.Diagnostics.Stopwatch.StartNew();
 
         foreach (var red in testSkup.Podaci)
         {
@@ -151,6 +182,7 @@ public class MojDataSet
             if (stvarna == predikcija)
                 tacni++;
         }
+        stopwatchEvaluacija.Stop();
 
         foreach (var klasa in rezultat.SveKlase.Keys)
         {
@@ -173,10 +205,10 @@ public class MojDataSet
             rezultat.F1Score[klasa] = f1;
         }
 
-        rezultat.Historija.AddRange(testSkup.Historija);
         rezultat.Accuracy = tacni / (double)ukupno;
         rezultat.UkupnoTestiranih = ukupno;
         rezultat.UspjesnoPredvidjeno = tacni;
+        rezultat.VrijemeEvaluacijeSek = stopwatchEvaluacija.ElapsedMilliseconds / 1000.0; // u sekundama
 
         return rezultat;
     }
@@ -207,4 +239,58 @@ public class MojDataSet
             red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(vrijednost);
         }
     }
+
+    public void Analiziraj()
+    {
+        foreach (var meta in Atributi)
+        {
+            var vrijednosti = Podaci
+                .Select(p => p.Atributi.TryGetValue(meta.Naziv, out var val) ? val : null)
+                .Where(v => v != null)
+                .ToList();
+
+            if (meta.TipAtributa == TipAtributa.Kategoricki)
+            {
+                var tekstualne = vrijednosti
+                    .Select(v => v!.Tekst)
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .ToList();
+
+                meta.Kategoricki = new KategorickiInfo
+                {
+                    BrojRazlicitihVrijednosti = tekstualne.Distinct().Count(),
+                    Top5Najcescih = tekstualne
+                        .GroupBy(t => t)
+                        .OrderByDescending(g => g.Count())
+                        .Take(5)
+                        .Select(g => new VrijednostBrojac{ Vrijednost = g.Key!, BrojPojavljivanja = g.Count() })
+                        .ToList()
+                };
+            }
+            else if (meta.TipAtributa == TipAtributa.Numericki)
+            {
+                var brojevi = vrijednosti
+                    .Select(v => v!.Broj)
+                    .Where(b => b.HasValue)
+                    .Select(b => b!.Value)
+                    .ToList();
+
+                if (brojevi.Count > 0)
+                {
+                    double prosjek = brojevi.Average();
+                    double std = Math.Sqrt(brojevi.Average(b => Math.Pow(b - prosjek, 2)));
+
+
+                    meta.Numericki = new NumerickiInfo
+                    {
+                        Min = brojevi.Min(),
+                        Max = brojevi.Max(),
+                        SrednjaVrijednost = prosjek,
+                        StandardnaDevijacija = std
+                    };
+                }
+            }
+        }
+    }
+
 }

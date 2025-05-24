@@ -9,8 +9,6 @@ public class ExcelAlati
         if (!File.Exists(putanja))
             throw new Exception("Excel fajl nije pronađen.");
 
-        nazivCiljneKolone = nazivCiljneKolone.ToUpper();
-
         ExcelPackage.License.SetNonCommercialOrganization("FIT education");
 
         using var paket = new ExcelPackage(new FileInfo(putanja));
@@ -33,7 +31,7 @@ public class ExcelAlati
 
             for (int j = 1; j <= brojKolona; j++)
             {
-                string naziv = zaglavlje[j - 1].ToUpper();
+                string naziv = zaglavlje[j - 1];
                 string vrijednost = lista.Cells[i, j].Text.Trim();
 
                 if (naziv == nazivCiljneKolone)
@@ -53,7 +51,7 @@ public class ExcelAlati
             .Where(n => n != nazivCiljneKolone)
             .Select(n => new AtributMeta
             {
-                Naziv = n.ToUpper(),
+                Naziv = n,
                 TipAtributa = privremeniPodaci
                     .Where(p => p.ContainsKey(n) && !string.IsNullOrWhiteSpace(p[n]))
                     .All(p => double.TryParse(p[n], out _))
