@@ -7,32 +7,33 @@ public class ExcelAlati
     public MojDataSet Ucitaj(string putanja, string nazivCiljneKolone)
     {
         if (!File.Exists(putanja))
-            throw new Exception("Excel fajl nije pronađen.");               
+            throw new Exception("Excel fajl nije pronađen.");
+
+        nazivCiljneKolone = nazivCiljneKolone.ToUpper();
 
         ExcelPackage.License.SetNonCommercialOrganization("FIT education");
 
         using var paket = new ExcelPackage(new FileInfo(putanja));
         var lista = paket.Workbook.Worksheets[0];
 
-        var zaglavlje = new List<string>();
         int brojKolona = lista.Dimension.Columns;
         int brojRedova = lista.Dimension.Rows;
 
+        var zaglavlje = new List<string>();
         for (int i = 1; i <= brojKolona; i++)
             zaglavlje.Add(lista.Cells[1, i].Text.Trim());
 
-        // Privremeno skladišti raw podatke kao Dictionary<string, string>
-        List<Dictionary<string, string>> privremeniPodaci = new ();
-        List<string> klase = new ();
+        var privremeniPodaci = new List<Dictionary<string, string>>();
+        var klase = new List<string>();
 
         for (int i = 2; i <= brojRedova; i++)
         {
-            Dictionary<string, string> red = new ();
-            string klasa = "";
+            var red = new Dictionary<string, string>();
+            string? klasa = null;
 
             for (int j = 1; j <= brojKolona; j++)
             {
-                string naziv = zaglavlje[j - 1];
+                string naziv = zaglavlje[j - 1].ToUpper();
                 string vrijednost = lista.Cells[i, j].Text.Trim();
 
                 if (naziv == nazivCiljneKolone)
@@ -48,12 +49,11 @@ public class ExcelAlati
             }
         }
 
-        // Odredi tipove atributa
-        List<AtributMeta> atributiMeta = zaglavlje
+        var atributiMeta = zaglavlje
             .Where(n => n != nazivCiljneKolone)
             .Select(n => new AtributMeta
             {
-                Naziv = n,
+                Naziv = n.ToUpper(),
                 TipAtributa = privremeniPodaci
                     .Where(p => p.ContainsKey(n) && !string.IsNullOrWhiteSpace(p[n]))
                     .All(p => double.TryParse(p[n], out _))
@@ -62,31 +62,35 @@ public class ExcelAlati
             })
             .ToList();
 
-        // Konvertuj u RedPodatka s ispravnim VrijednostAtributa
-        List<RedPodatka> redovi = new ();
+        var redovi = new List<RedPodatka>();
 
         for (int i = 0; i < privremeniPodaci.Count; i++)
         {
             var red = new RedPodatka
             {
-                Atributi = new Dictionary<string, VrijednostAtributa>(),
-                Klasa = klase[i]
+                Klasa = klase[i],
+                Atributi = new Dictionary<string, VrijednostAtributa>()
             };
 
             foreach (var meta in atributiMeta)
             {
-                string vrijednost = privremeniPodaci[i].ContainsKey(meta.Naziv)
-                    ? privremeniPodaci[i][meta.Naziv]
-                    : "";
+                string vrijednost = privremeniPodaci[i].TryGetValue(meta.Naziv, out var v) ? v : "";
 
-                red.Atributi[meta.Naziv] = new VrijednostAtributa(vrijednost, meta.TipAtributa);
+                if (meta.TipAtributa == TipAtributa.Kategoricki)
+                {
+                    red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviKategorijski(vrijednost);
+                }
+                else if (meta.TipAtributa == TipAtributa.Numericki)
+                {
+                    double.TryParse(vrijednost, out var broj);
+                    red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(broj);
+                }
             }
 
             redovi.Add(red);
         }
 
-        var dataSetNaziv = Path.GetFileNameWithoutExtension(putanja);
-
-        return new MojDataSet(dataSetNaziv, redovi, atributiMeta, nazivCiljneKolone);
+        return new MojDataSet([putanja], redovi, atributiMeta, nazivCiljneKolone);
     }
+
 }

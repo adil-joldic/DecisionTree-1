@@ -63,33 +63,62 @@ public class DecisionTreeController : ControllerBase
     }
 
     [HttpGet]
+    public IActionResult Mushroom()
+    {
+        return Pokreni(new()
+        {
+            PutanjaDoFajla = "Files/mushroom1.xlsx",
+            CiljnaVarijabla = "class",
+            TestProcenat = 0.2,
+            KlasifikatorParamteri = new()
+            {
+                MaxDepth = 6,
+                MinSamples = 6
+            }
+        });
+    }
+
+    [HttpGet]
+    public IActionResult AdultCensusIncome()
+    {
+        return Pokreni(new()
+        {
+            PutanjaDoFajla = "Files/adult-census-income.xlsx",
+            CiljnaVarijabla = "class",
+            TestProcenat = 0.2,
+            KlasifikatorParamteri = new()
+            {
+                MaxDepth = 8,
+                MinSamples = 4
+            }
+        });
+    }
+    [HttpGet]
     public IActionResult Pokreni(
         [FromQuery] StabloZahtjev zahtjev)
     {
-        var stopwatchUkupno = System.Diagnostics.Stopwatch.StartNew();
 
-            MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla, zahtjev.CiljnaVarijabla);
-            (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
+        MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla, zahtjev.CiljnaVarijabla);
+        (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
 
-            var stopwatchTreniranje = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatchTreniranje = System.Diagnostics.Stopwatch.StartNew();
 
-                StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
+            StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
 
-            stopwatchTreniranje.Stop();
+        stopwatchTreniranje.Stop();
 
-            var stopwatchEvaluacija = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatchEvaluacija = System.Diagnostics.Stopwatch.StartNew();
 
-                EvaluacijaRezultat rezultat = fullDataSet.Evaluiraj(stablo, testSet);
+            EvaluacijaRezultat rezultat = fullDataSet.Evaluiraj(stablo, testSet);
 
-            stopwatchEvaluacija.Stop();
+        stopwatchEvaluacija.Stop();
 
-        stopwatchUkupno.Stop();
 
         return Ok(new
         {
             vrijemeTreniranja_ms = stopwatchTreniranje.ElapsedMilliseconds,
             vrijemeEvaluacije_ms = stopwatchEvaluacija.ElapsedMilliseconds,
-            ukupnoVrijeme_ms = stopwatchUkupno.ElapsedMilliseconds,
+            ukupnoVrijeme_ms = stopwatchTreniranje.ElapsedMilliseconds + stopwatchEvaluacija.ElapsedMilliseconds,
             rezultat,
         });
     }

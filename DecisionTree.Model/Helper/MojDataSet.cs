@@ -12,19 +12,28 @@ public class VrijednostAtributa
     public string? Tekst { get; set; }
     public double? Broj { get; set; }
 
-    public bool JeNumericki => Broj.HasValue;
+    public bool JeNumericki => TipAtributa == TipAtributa.Numericki;
 
     public TipAtributa TipAtributa { get; set; }
 
-    public VrijednostAtributa(string input, TipAtributa tipAtributa)
+    public static VrijednostAtributa NapraviKategorijski(string? input)
     {
-        TipAtributa = tipAtributa;
-        Tekst = input;
+        return new VrijednostAtributa
+        {
+            Broj = null,
+            Tekst = input,
+            TipAtributa = TipAtributa.Numericki
+        };
+    }
 
-        if (tipAtributa == TipAtributa.Numericki && double.TryParse(input, out var broj))
-            Broj = broj;
-        else
-            Broj = null;
+    public static VrijednostAtributa NapraviNumericki(double? input)
+    {
+        return new VrijednostAtributa
+        {
+            Broj = input,
+            Tekst = null,
+            TipAtributa = TipAtributa.Numericki
+        };
     }
 
     public override string ToString() => JeNumericki ? Broj?.ToString("0.###") ?? "" : Tekst ?? "";
@@ -32,9 +41,13 @@ public class VrijednostAtributa
 
 public class AtributMeta
 {
-    public string Naziv { get; set; } = string.Empty;
-    public TipAtributa TipAtributa { get; set; } = TipAtributa.Kategoricki;
-    public bool IsDeleted { get; set; } = false;
+    public required string Naziv { get; init; }
+    public required TipAtributa TipAtributa { get; init; }
+
+    /// <summary>
+    /// Označava da li se ovaj atribut koristi za učenje modela i predikciju.
+    /// </summary>
+    public bool KoristiZaModel { get; set; } = true;
 }
 
 public class RedPodatka
@@ -53,19 +66,40 @@ public class RedPodatka
 
 public class MojDataSet
 {
-    public string Naziv { get; set; } = string.Empty;
+    public List<string> Historija { get; set; } = [];
     public List<RedPodatka> Podaci { get; set; } = new();
     public List<AtributMeta> Atributi { get; set; } = new();
     public string CiljnaKolona { get; set; }
 
-    public MojDataSet(string naziv, List<RedPodatka> podaci, List<AtributMeta> atributi, string ciljnaKolona)
+    public MojDataSet(IEnumerable<string> historija, List<RedPodatka> podaci, List<AtributMeta> atributi, string ciljnaKolona)
     {
         if (podaci.Count == 0)
             throw new ArgumentException("Podaci ne mogu biti prazni.");
         Podaci = podaci;
-        Naziv = naziv;
+        this.Historija = historija.ToList();
         CiljnaKolona = ciljnaKolona;
         Atributi = atributi;
+        IskljuciAtribute("ID"); // Isključujemo ID ako postoji
+    }
+
+    public MojDataSet DodajHistorijskiZapis(string historijskiZapis)
+    {
+        return new MojDataSet([.. Historija, historijskiZapis], Podaci, Atributi, CiljnaKolona);
+    }
+
+    public void IskljuciAtribute(params string[] nazivi)
+    {
+        foreach (var meta in Atributi)
+        {
+            if (nazivi.Contains(meta.Naziv.ToUpper()))
+            {
+                if (meta.KoristiZaModel)
+                {
+                    meta.KoristiZaModel = false;
+                    DodajHistorijskiZapis($"Isključeni atribut: {meta.Naziv} iz modela učenja");
+                }
+            }
+        }
     }
 
     // ✂️ Funkcija za nasumično dijeljenje na trening i test skup
@@ -81,8 +115,8 @@ public class MojDataSet
         List<RedPodatka> test = izmijesano.Skip(granica).ToList();
 
         return (
-            new MojDataSet(Naziv + "-trening", trening, this.Atributi, this.CiljnaKolona),
-            new MojDataSet(Naziv + "-test", test, this.Atributi, this.CiljnaKolona)
+            new MojDataSet(Historija, trening, Atributi, CiljnaKolona).DodajHistorijskiZapis($"trening {(1 - testProcenat):P0}"),
+            new MojDataSet(Historija, test, Atributi, CiljnaKolona).DodajHistorijskiZapis($"test {testProcenat:P0}")
         );
     }
 
@@ -139,7 +173,7 @@ public class MojDataSet
             rezultat.F1Score[klasa] = f1;
         }
 
-        rezultat.NazivDataSeta = testSkup.Naziv;
+        rezultat.Historija.AddRange(testSkup.Historija);
         rezultat.Accuracy = tacni / (double)ukupno;
         rezultat.UkupnoTestiranih = ukupno;
         rezultat.UspjesnoPredvidjeno = tacni;
@@ -147,4 +181,30 @@ public class MojDataSet
         return rezultat;
     }
 
+    public void DodajKolonuKategorijski(string nazivKolone, Func<RedPodatka, string?> funkcija)
+    {
+        // Dodaj kolonu u metapodatke ako još ne postoji
+        if (!Atributi.Any(a => a.Naziv == nazivKolone))
+            Atributi.Add(new AtributMeta { Naziv = nazivKolone, TipAtributa = TipAtributa.Kategoricki });
+
+        // Dodaj vrijednosti u svaki red
+        foreach (var red in Podaci)
+        {
+            string? vrijednost = funkcija(red);
+            red.Atributi[nazivKolone] = VrijednostAtributa.NapraviKategorijski(vrijednost);
+        }
+    }
+    public void DodajKolonuNumericki(string nazivKolone, Func<RedPodatka, double?> funkcija)
+    {
+        // Dodaj kolonu u metapodatke ako još ne postoji
+        if (!Atributi.Any(a => a.Naziv == nazivKolone))
+            Atributi.Add(new AtributMeta { Naziv = nazivKolone, TipAtributa = TipAtributa.Kategoricki });
+
+        // Dodaj vrijednosti u svaki red
+        foreach (var red in Podaci)
+        {
+            double? vrijednost = funkcija(red);
+            red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(vrijednost);
+        }
+    }
 }
