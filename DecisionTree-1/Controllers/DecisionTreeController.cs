@@ -2,6 +2,7 @@
 
 using DecisionTree.Model.Helper;
 using Microsoft.AspNetCore.Mvc;
+using static StabloKlasifikator;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
@@ -17,35 +18,90 @@ public class DecisionTreeController : ControllerBase
     [HttpGet]
     public IActionResult Play()
     {
-        string putanjaDoFajla = "Files/play1.xlsx";
-        string ciljnaVarijabla = "Play";
+        return Pokreni(new()
+        {
+            PutanjaDoFajla = "Files/play1.xlsx",
+            CiljnaVarijabla = "Play",
+            TestProcenat = 0.2,
+            KlasifikatorParamteri = new (){
+                MaxDepth = 5,
+                MinSamples = 5
+            }
+        });
+    }
 
-        return Pokreni(putanjaDoFajla, ciljnaVarijabla);
+    [HttpGet]
+    public IActionResult Cardio()
+    {
+        return Pokreni(new()
+        {
+            PutanjaDoFajla = "Files/cardio1.xlsx",
+            CiljnaVarijabla = "dcRyth",
+            TestProcenat = 0.3,
+            KlasifikatorParamteri = new()
+            {
+                MaxDepth = 5,
+                MinSamples = 5
+            }
+        });
     }
 
     [HttpGet]
     public IActionResult Sales()
     {
-        string putanjaDoFajla = "Files/Sales4.xlsx";
-        string ciljnaVarijabla = "SalesCategory";
-
-        return Pokreni(putanjaDoFajla, ciljnaVarijabla);
+        return Pokreni(new()
+        {
+            PutanjaDoFajla = "Files/Sales3.xlsx",
+            CiljnaVarijabla = "SalesCategory",
+            TestProcenat = 0.2,
+            KlasifikatorParamteri = new()
+            {
+                MaxDepth = 5,
+                MinSamples = 5
+            }
+        });
     }
 
     [HttpGet]
-    public IActionResult Pokreni([FromQuery] string putanjaDoFajla, [FromQuery] string ciljnaVarijabla, [FromQuery] double testProcenat = 0.2)
+    public IActionResult Pokreni(
+        [FromQuery] StabloZahtjev zahtjev)
     {
-        MojDataSet fullDataSet = _ucitavac.Ucitaj(putanjaDoFajla, ciljnaVarijabla);
+        var stopwatchUkupno = System.Diagnostics.Stopwatch.StartNew();
 
-        (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(testProcenat);
+            MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla, zahtjev.CiljnaVarijabla);
+            (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
 
-        StabloKlasifikator stablo = new StabloKlasifikator(treningSet);
+            var stopwatchTreniranje = System.Diagnostics.Stopwatch.StartNew();
 
-        EvaluacijaRezultat rezultat  = fullDataSet.Evaluiraj(stablo, testSet);
+                StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
+
+            stopwatchTreniranje.Stop();
+
+            var stopwatchEvaluacija = System.Diagnostics.Stopwatch.StartNew();
+
+                EvaluacijaRezultat rezultat = fullDataSet.Evaluiraj(stablo, testSet);
+
+            stopwatchEvaluacija.Stop();
+
+        stopwatchUkupno.Stop();
 
         return Ok(new
         {
-            rezultat
+            vrijemeTreniranja_ms = stopwatchTreniranje.ElapsedMilliseconds,
+            vrijemeEvaluacije_ms = stopwatchEvaluacija.ElapsedMilliseconds,
+            ukupnoVrijeme_ms = stopwatchUkupno.ElapsedMilliseconds,
+            rezultat,
         });
+    }
+
+    public class StabloZahtjev
+    {
+        public string PutanjaDoFajla { get; set; } = string.Empty;
+
+        public string CiljnaVarijabla { get; set; } = string.Empty;
+
+        public double TestProcenat { get; set; } = 0.2;
+
+        public StabloKlasifikatorParamteri KlasifikatorParamteri { get; set; } = new();
     }
 }

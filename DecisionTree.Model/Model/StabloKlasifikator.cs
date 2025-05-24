@@ -1,139 +1,226 @@
 ﻿using DecisionTree.Model.Model;
+using static StabloKlasifikator;
 
 public class CvorStabla
 {
     /// <summary>
-    /// Atribut po kojem se vrši grananje u ovom čvoru.
-    /// Ako je čvor list, ova vrijednost je null.
+    /// Atribut po kojem se vrši grananje u ovom čvoru (null ako je list).
     /// </summary>
-    /// <example>
-    /// outlook
-    /// </example>
-    public string? Atribut { get; set; } //koristimo samo za čvorove koji nisu list-leaf
+    public required string? Atribut { get; set; }
 
     /// <summary>
-    /// Djeca ovog čvora predstavljaju moguće vrijednosti atributa.
-    /// Ključ je vrijednost atributa (npr. "outlook"), a vrijednost je podstablo.
+    /// Djeca ovog čvora, indeksirana po vrijednosti atributa.
     /// </summary>
-
     public Dictionary<string, CvorStabla> Djeca { get; set; } = new();
+
     /// <summary>
-    /// Naziv ciljne klase ako je čvor list (npr. "Play", "Not play").
-    /// Ako nije list, ova vrijednost je null.
+    /// Vrijednost ciljne klase ako je čvor list (null ako nije list).
     /// </summary>
-    public string? Klasa { get; set; }  //koristimo samo za čvorove koji jesu list-leaf
-
+    public required string? Klasa { get; set; }
 
     /// <summary>
-    /// Indikator da li je čvor list (nema više grananja).
+    /// Granična vrijednost (za numeričke atribute).
+    /// </summary>
+    public required double? Threshold { get; set; }
+
+    /// <summary>
+    /// Tip atributa (kategorijski ili numerički).
+    /// </summary>
+    public required TipAtributa? Tip { get; set; }
+
+    /// <summary>
+    /// Da li je atribut numerički.
+    /// </summary>
+    public bool IsNumericki => Tip == TipAtributa.Numericki;
+
+    /// <summary>
+    /// Da li je čvor list (nema djece).
     /// </summary>
     public bool JeList => Klasa != null;
+
+    /// <summary>
+    /// Prazan konstruktor za ručno kreiranje.
+    /// </summary>
+    private CvorStabla() { }
+
+    /// <summary>
+    /// Kreira list čvor sa zadatom klasom.
+    /// </summary>
+    public static CvorStabla NapraviList(string klasa)
+    {
+        return new CvorStabla { 
+            Klasa = klasa,
+            Atribut = null,
+            Tip = null,
+            Threshold = null,
+        };
+    }
+
+    /// <summary>
+    /// Kreira čvor za grananje.
+    /// </summary>
+    public static CvorStabla NapraviGrananjeKategorijski(string atribut)
+    {
+        return new CvorStabla
+        {
+            Klasa = null,
+            Atribut = atribut,
+            Tip = TipAtributa.Kategoricki,
+            Threshold = null
+        };
+    }
+
+    /// <summary>
+    /// Kreira čvor za grananje.
+    /// </summary>
+    public static CvorStabla NapraviGrananjeNumerijski(string atribut, double? threshold)
+    {
+        return new CvorStabla
+        {
+            Klasa = null,
+            Atribut = atribut,
+            Tip = TipAtributa.Numericki,
+            Threshold = threshold
+        };
+    }
 }
+
 
 
 /// <summary>
 /// Predstavlja implementaciju stabla odlučivanja za klasifikaciju.
 /// Koristi Gini indeks i podržava samo kategorijske atribute.
 /// </summary>
+
 public class StabloKlasifikator : IKlasifikator
 {
     private readonly CvorStabla _korijen;
 
-    public StabloKlasifikator(MojDataSet podaci)
+    public class StabloKlasifikatorParamteri
     {
-        _korijen = IzgradiStabloRekurzija(podaci.Podaci, podaci.Atributi);
+        public int MaxDepth { get; set; } = 10;
+        public int MinSamples { get; set; } = 1;
     }
+    public override string Naziv => nameof(StabloKlasifikator);
+    public override object Parametri => StabloParamteri;
 
-    /// <summary>
-    /// Rekurzivno gradi stablo odlučivanja iz skupa podataka koristeći samo kategorijske atribute.
-    /// </summary>
-    private CvorStabla IzgradiStabloRekurzija(List<RedPodatka> podaci, List<AtributMeta> atributi)
+    public StabloKlasifikatorParamteri StabloParamteri { get; }
+    public StabloKlasifikator(MojDataSet podaci, StabloKlasifikatorParamteri stabloParamteri)
     {
-        // Ako svi redovi imaju istu klasu – vrati list sa tom klasom
-        if (podaci.Select(p => p.Klasa).Distinct().Count() == 1)
-            return new CvorStabla { Klasa = podaci[0].Klasa };
-
-        // Ako nema atributa za grananje – vrati najčešću klasu
+        ArgumentNullException.ThrowIfNull(podaci, nameof(podaci));
+        ArgumentNullException.ThrowIfNull(stabloParamteri, nameof(stabloParamteri));
+        StabloParamteri = stabloParamteri;
+        _korijen = IzgradiStabloRekurzija(podaci.Podaci, podaci.Atributi, trenutnaDubina: 0);
+    }
+    private CvorStabla IzgradiStabloRekurzija(
+     List<RedPodatka> podaci,
+     List<AtributMeta> atributi,
+     int trenutnaDubina = 0)
+    {
         if (!atributi.Any())
-            return new CvorStabla { Klasa = NajcescaKlasa(podaci) };
+            return CvorStabla.NapraviList(klasa: GiniHelper.NajcescaKlasa(podaci));
 
-        // Ukloni numeričke atribute
-        var kandidati = atributi.Where(a => a.TipAtributa == TipAtributa.Kategoricki).ToList();
-        if (!kandidati.Any())
-            return new CvorStabla { Klasa = NajcescaKlasa(podaci) };
+        if (podaci.Count < StabloParamteri.MinSamples || trenutnaDubina >= StabloParamteri.MaxDepth)
+            return CvorStabla.NapraviList(klasa: GiniHelper.NajcescaKlasa(podaci));
 
-        // Odaberi najbolji atribut (po Gini indeksu)
-        var najbolji = kandidati
-            .Select(a => new { Atribut = a.Naziv, Gini = IzracunajGiniIndeks(podaci, a.Naziv) })
-            .OrderBy(x => x.Gini)
-            .Select(x=>x.Atribut)
-            .First();
+        if (podaci.Select(p => p.Klasa).Distinct().Count() == 1)
+            return CvorStabla.NapraviList(klasa: podaci[0].Klasa);
 
-        var cvor = new CvorStabla { Atribut = najbolji };
+        string? najboljiAtribut = null;
+        double najboljiGini = double.MaxValue;
+        double? najboljiThreshold = null;
+        bool najboljiJeNumericki = false;
 
-        // Gradi podstabla za svaku vrijednost atributa
-        string[] vrijednosti = podaci.Select(p => p.Atributi[najbolji]).Distinct().ToArray();
-
-        //npr. za 1. nivo rekurzije:
-        //      atribut "vrijeme", vrijednosti: "sunčano", "oblačno", "kišovito"
-
-            //npr. za 2. nivo rekurzije za "kišovito",
-            //      atribut "vjetar", vrijednosti su "da, "ne":
-            //npr. za 2. nivo rekurzije za "oblačno",
-            //      klasa je "igraj" ili "ne igraj" (zavisi od podataka) 
-            //npr. za 2. nivo rekurzije za "sunčano",
-            //      atribut "vlažnost", vrijednosti su "malo, "puno": 
-
-        foreach (var vr in vrijednosti)
+        foreach (var atribut in atributi)
         {
-            var podskup = podaci.Where(p => p.Atributi[najbolji] == vr).ToList();
-            var preostali = kandidati.Where(a => a.Naziv != najbolji).ToList();
+            double gini;
+            double? threshold = null;
 
-            cvor.Djeca[vr] = podskup.Any()
-                ? IzgradiStabloRekurzija(podskup, preostali)
-                : new CvorStabla { Klasa = NajcescaKlasa(podaci) };
+            if (atribut.TipAtributa == TipAtributa.Kategoricki)
+            {
+                gini = GiniHelper.IzracunajGiniIndeks(podaci, atribut.Naziv);
+            }
+            else if (atribut.TipAtributa == TipAtributa.Numericki)
+            {
+                (gini, threshold) = GiniHelper.IzracunajGiniSaGrupama(podaci, atribut.Naziv, brojGrupa: 100);
+            }
+            else continue;
+
+            if (gini < najboljiGini)
+            {
+                najboljiAtribut = atribut.Naziv;
+                najboljiGini = gini;
+                najboljiThreshold = threshold;
+                najboljiJeNumericki = atribut.TipAtributa == TipAtributa.Numericki;
+            }
         }
 
-        /**
-            unaprijediti:
+        if (najboljiAtribut == null)
+            return CvorStabla.NapraviList(klasa: GiniHelper.NajcescaKlasa(podaci));
 
-            Dodaj maksimalnu dubinu (maxDepth)
+        var preostali = atributi.Where(a => a.Naziv != najboljiAtribut).ToList();
 
-            Dodaj minimalni broj primjera po čvoru (minSamples)
+        AtributMeta cvorAtribut = atributi.First(a => a.Naziv == najboljiAtribut);
 
-            Omogući rad s numeričkim atributima (<= threshold)
-         */
-        return cvor;
-    }
-
-    private string NajcescaKlasa(List<RedPodatka> podaci) =>
-        podaci.GroupBy(p => p.Klasa)
-              .OrderByDescending(g => g.Count())
-              .First().Key;
-
-    private double IzracunajGiniIndeks(List<RedPodatka> podaci, string atribut)
-    {
-        // https://hrcak.srce.hr/file/151776
-        // pogledati primjer u excelu play1.xlsx ->
-        // gini index outlook = 0.46
-        // gini index windy = 0.23
-
-        var grupe = podaci.GroupBy(p => p.Atributi[atribut]);
-        double ukupno = podaci.Count;
-        double gini = 0.0;
-
-        foreach (var grupa in grupe)
+        if (cvorAtribut.TipAtributa == TipAtributa.Numericki)
         {
-            double velicina = grupa.Count();
-            double skor = grupa.GroupBy(p => p.Klasa)
-                                .Select(g => Math.Pow(g.Count() / velicina, 2))
-                                .Sum();
-            gini += (1 - skor) * (velicina / ukupno);
+            if (!najboljiThreshold.HasValue)
+                return CvorStabla.NapraviList(klasa: GiniHelper.NajcescaKlasa(podaci));
+
+            CvorStabla cvor = CvorStabla.NapraviGrananjeNumerijski(najboljiAtribut, najboljiThreshold);
+
+            var lijevi = podaci
+                .Where(p => p.Atributi[najboljiAtribut].Broj.HasValue &&
+                            p.Atributi[najboljiAtribut].Broj.Value <= cvor.Threshold.Value)
+                .ToList();
+
+            var desni = podaci
+                .Where(p => p.Atributi[najboljiAtribut].Broj.HasValue &&
+                            p.Atributi[najboljiAtribut].Broj.Value > cvor.Threshold.Value)
+                .ToList();
+
+            cvor.Djeca["<="] = lijevi.Any()
+                ? IzgradiStabloRekurzija(lijevi, preostali, trenutnaDubina + 1)
+                : CvorStabla.NapraviList(klasa: GiniHelper.NajcescaKlasa(podaci));
+
+            cvor.Djeca[">"] = desni.Any()
+                ? IzgradiStabloRekurzija(desni, preostali, trenutnaDubina + 1)
+                : CvorStabla.NapraviList(klasa: GiniHelper.NajcescaKlasa(podaci));
+
+            return cvor;
         }
 
-        return gini;
+        if (cvorAtribut.TipAtributa == TipAtributa.Kategoricki)
+        {
+            CvorStabla cvor = CvorStabla.NapraviGrananjeKategorijski(najboljiAtribut);
+
+            var vrijednosti = podaci
+                .Select(p => p.Atributi[najboljiAtribut].Tekst)
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Distinct()
+                .ToArray();
+
+            foreach (var vr in vrijednosti)
+            {
+                if (vr != null)
+                {
+                    var podskup = podaci
+                        .Where(p => p.Atributi[najboljiAtribut].Tekst == vr)
+                        .ToList();
+
+                    cvor.Djeca[vr] = podskup.Any()
+                        ? IzgradiStabloRekurzija(podskup, preostali, trenutnaDubina + 1)
+                        : CvorStabla.NapraviList(klasa: GiniHelper.NajcescaKlasa(podaci));
+                }
+            }
+            return cvor;
+        }
+
+        throw new InvalidOperationException("Nepoznat tip atributa.");
     }
-    public string Predikcija(RedPodatka red)
+
+
+    public override string Predikcija(RedPodatka red)
     {
         return PredikcijaRekurzivno(_korijen, red);
     }
@@ -147,9 +234,24 @@ public class StabloKlasifikator : IKlasifikator
             return "Nepoznato";
 
         var vrijednost = red.Atributi[cvor.Atribut!];
-        if (cvor.Djeca.TryGetValue(vrijednost, out var dijete))
-            return PredikcijaRekurzivno(dijete, red);
+
+        if (cvor.IsNumericki && cvor.Threshold.HasValue)
+        {
+            if (!vrijednost.Broj.HasValue)
+                return "Nepoznato";
+
+            string grana = vrijednost.Broj.Value <= cvor.Threshold.Value ? "<=" : ">";
+            if (cvor.Djeca.TryGetValue(grana, out var dijete))
+                return PredikcijaRekurzivno(dijete, red);
+        }
         else
-            return "Nepoznato";
+        {
+            string kljuc = vrijednost.Tekst ?? "";
+            if (cvor.Djeca.TryGetValue(kljuc, out var dijete))
+                return PredikcijaRekurzivno(dijete, red);
+        }
+
+        return "Nepoznato";
     }
 }
+

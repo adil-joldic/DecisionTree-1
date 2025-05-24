@@ -1,11 +1,13 @@
 ﻿namespace DecisionTree.Model.Model;
 
-public interface IKlasifikator
+public abstract class IKlasifikator
 {
+    public abstract string Naziv { get; }
+    public abstract object Parametri { get; }
     /// <summary>
     /// Vraća naziv klase na osnovu atributa.
     /// </summary>
     /// <param name="atributi">Ulazni atributi podatka</param>
     /// <returns>Naziv predikcije (klase)</returns>
-    string Predikcija(RedPodatka red);
+    public abstract string Predikcija(RedPodatka red);
 }

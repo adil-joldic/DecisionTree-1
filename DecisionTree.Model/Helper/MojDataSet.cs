@@ -7,6 +7,29 @@ public enum TipAtributa
     Numericki
 }
 
+public class VrijednostAtributa
+{
+    public string? Tekst { get; set; }
+    public double? Broj { get; set; }
+
+    public bool JeNumericki => Broj.HasValue;
+
+    public TipAtributa TipAtributa { get; set; }
+
+    public VrijednostAtributa(string input, TipAtributa tipAtributa)
+    {
+        TipAtributa = tipAtributa;
+        Tekst = input;
+
+        if (tipAtributa == TipAtributa.Numericki && double.TryParse(input, out var broj))
+            Broj = broj;
+        else
+            Broj = null;
+    }
+
+    public override string ToString() => JeNumericki ? Broj?.ToString("0.###") ?? "" : Tekst ?? "";
+}
+
 public class AtributMeta
 {
     public string Naziv { get; set; } = string.Empty;
@@ -19,7 +42,7 @@ public class RedPodatka
     /// <summary>
     /// Vrijednosti atributa za jedan red (npr. {"Vrijeme": "sunčano", "Temperatura": "toplo"})
     /// </summary>
-    public Dictionary<string, string> Atributi { get; set; } = new();
+    public Dictionary<string, VrijednostAtributa> Atributi { get; set; } = new();
 
     /// <summary>
     /// Oznaka ciljne klase (npr. "Igraj", "Ne igraj")
@@ -30,56 +53,47 @@ public class RedPodatka
 
 public class MojDataSet
 {
+    public string Naziv { get; set; } = string.Empty;
     public List<RedPodatka> Podaci { get; set; } = new();
     public List<AtributMeta> Atributi { get; set; } = new();
     public string CiljnaKolona { get; set; }
 
-    public MojDataSet(List<RedPodatka> podaci, string ciljnaKolona)
+    public MojDataSet(string naziv, List<RedPodatka> podaci, List<AtributMeta> atributi, string ciljnaKolona)
     {
-        if (podaci == null || !podaci.Any())
+        if (podaci.Count == 0)
             throw new ArgumentException("Podaci ne mogu biti prazni.");
-
-
         Podaci = podaci;
+        Naziv = naziv;
         CiljnaKolona = ciljnaKolona;
-
-        Atributi = podaci[0].Atributi
-            .Select(kvp => new AtributMeta
-            {
-                Naziv = kvp.Key,
-                TipAtributa = podaci
-                        .Where(p => !string.IsNullOrWhiteSpace(p.Atributi[kvp.Key]))
-                        .All(p => double.TryParse(p.Atributi[kvp.Key], out _))
-                            ? TipAtributa.Numericki
-                            : TipAtributa.Kategoricki
-            }).ToList();
+        Atributi = atributi;
     }
 
     // ✂️ Funkcija za nasumično dijeljenje na trening i test skup
     public (MojDataSet Train, MojDataSet Test) Podijeli(double testProcenat = 0.2, int? random_state = null)
     {
-        // todo: za isti random_stati treba dobiti isti rezultat
         // ako je random_state null, koristi se trenutni sistemski random
-        //todo: implementirati podjelu sa random_state, da bude konzistentno
         var random = new Random(random_state ?? DateTime.Now.Millisecond);
 
-        var rnd = new Random();
-        var izmijesano = Podaci.OrderBy(x => rnd.Next()).ToList();
+        var izmijesano = Podaci.OrderBy(x => random.Next()).ToList();
         int granica = (int)(Podaci.Count * (1 - testProcenat));
 
-        var trening = izmijesano.Take(granica).ToList();
-        var test = izmijesano.Skip(granica).ToList();
+        List<RedPodatka> trening = izmijesano.Take(granica).ToList();
+        List<RedPodatka> test = izmijesano.Skip(granica).ToList();
 
         return (
-            new MojDataSet(trening, CiljnaKolona),
-            new MojDataSet(test, CiljnaKolona)
+            new MojDataSet(Naziv + "-trening", trening, this.Atributi, this.CiljnaKolona),
+            new MojDataSet(Naziv + "-test", test, this.Atributi, this.CiljnaKolona)
         );
     }
 
     // 📊 Funkcija za izračun tačnosti predikcije
     public EvaluacijaRezultat Evaluiraj(IKlasifikator klasifikator, MojDataSet testSkup)
     {
-        var rezultat = new EvaluacijaRezultat();
+        var rezultat = new EvaluacijaRezultat
+        {
+            Klasifikator = klasifikator.Naziv,
+            Parametri = klasifikator.Parametri,
+        };
 
         int tacni = 0;
         int ukupno = testSkup.Podaci.Count;
@@ -125,6 +139,7 @@ public class MojDataSet
             rezultat.F1Score[klasa] = f1;
         }
 
+        rezultat.NazivDataSeta = testSkup.Naziv;
         rezultat.Accuracy = tacni / (double)ukupno;
         rezultat.UkupnoTestiranih = ukupno;
         rezultat.UspjesnoPredvidjeno = tacni;

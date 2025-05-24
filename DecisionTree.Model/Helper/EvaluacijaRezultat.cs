@@ -4,16 +4,22 @@ public class EvaluacijaRezultat
 {
     //https://medium.com/analytics-vidhya/confusion-matrix-accuracy-precision-recall-f1-score-ade299cf63cd
 
-    public double Accuracy { get; set; }
+    public required string Klasifikator { get; set; }
+    public string NazivDataSeta { get; set; } = string.Empty;
+    public required object Parametri { get; set; } = new();    
     public int UkupnoTestiranih { get; set; }
     public int UspjesnoPredvidjeno { get; set; }
+    public double Accuracy { get; set; }
+    public double AvgPrecision => Precision.Average(x => x.Value);
+    public double AvgRecall => Recall.Average(x => x.Value);
+    public double AvgF1Score => F1Score.Average(x => x.Value);
 
-    // TODO: Dodati detaljne evaluacione metrike
     public Dictionary<string, double> Precision { get; set; } = new(); // po klasama
     public Dictionary<string, double> Recall { get; set; } = new(); // po klasama
     public Dictionary<string, double> F1Score { get; set; } = new(); // po klasama
     public Dictionary<string, int> ConfusionMatrix { get; set; } = new();
     public Dictionary<string, int> SveKlase { get; set; } = new(); // broj stvarnih po klasama
+
 
     public void Ispisi()
     {
