@@ -50,14 +50,12 @@ public class ExcelHelper
             })
             .ToList();
 
+
         var redovi = new List<RedPodatka>();
 
         for (int i = 0; i < privremeniPodaci.Count; i++)
         {
-            var red = new RedPodatka
-            {
-                Atributi = new Dictionary<string, VrijednostAtributa>()
-            };
+            var red = new RedPodatka(new());
 
             foreach (var meta in atributiMeta)
             {
@@ -79,7 +77,7 @@ public class ExcelHelper
             redovi.Add(red);
         }
 
-        return new MojDataSet([putanja], redovi, atributiMeta, ciljnaVarijabla);
+        return new MojDataSet([putanja], redovi, atributiMeta, ciljnaVarijabla); ;
     }
 
 }

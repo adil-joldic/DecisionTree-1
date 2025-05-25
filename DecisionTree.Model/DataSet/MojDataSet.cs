@@ -19,7 +19,7 @@ public class VrijednostAtributa
 
     public required TipAtributa TipAtributa { get; set; }
 
-    public required RedPodatka RedPodatka { get; init; }
+    public required RedPodatka RedPodatka { get; set; }
 
     private VrijednostAtributa()
     {
@@ -45,6 +45,11 @@ public class VrijednostAtributa
             TipAtributa = TipAtributa.Numericki,
             RedPodatka = redPodatka
         };
+    }
+
+    public VrijednostAtributa Clone()
+    {
+        return (VrijednostAtributa)this.MemberwiseClone();
     }
 
     public override string ToString() => JeNumericki ? Broj?.ToString("0.###") ?? "" : Tekst ?? "";
@@ -83,6 +88,18 @@ public class AtributMeta
 
     public NumerickiInfo? Numericki { get; set; }
     public KategorickiInfo? Kategoricki { get; set; }
+
+    public AtributMeta Clone()
+    {
+        return new AtributMeta
+        {
+            Naziv = this.Naziv,
+            TipAtributa = this.TipAtributa,
+            KoristiZaModel = this.KoristiZaModel,
+            Numericki = null, //pozvat cemo Analiziraj() da popuni ove vrijednosti
+            Kategoricki = null //pozvat cemo Analiziraj() da popuni ove vrijednosti
+        };
+    }
 }
 
 public class RedPodatka
@@ -108,6 +125,26 @@ public class RedPodatka
     {
         return Atributi.TryGetValue(naziv, out var v) ? v?.Broj : null;
     }
+
+    public RedPodatka(Dictionary<string, VrijednostAtributa> input)
+    {
+        Atributi = new Dictionary<string, VrijednostAtributa>();
+
+        foreach (var (key, value) in input)
+        {
+            var novi = value.Clone();
+            novi.RedPodatka = this; // važna korekcija!
+            Atributi[key] = novi;
+        }
+    }
+    public RedPodatka Clone()
+    {
+        return new RedPodatka(Atributi);
+    }
+    public override string ToString()
+    {
+        return string.Join(", ", Atributi.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+    }
 }
 
 
@@ -118,13 +155,13 @@ public class MojDataSet
     public List<AtributMeta> Atributi { get; set; } = new();
     public string? CiljnaKolona { get; set; }
 
-    public MojDataSet(IEnumerable<string> historija, List<RedPodatka> podaci, List<AtributMeta> atributi, string? ciljnaVarijabla = null)
+    public MojDataSet(List<string> historija, List<RedPodatka> podaci, List<AtributMeta> atributi, string? ciljnaVarijabla = null)
     {
         if (podaci.Count == 0)
             throw new ArgumentException("Podaci ne mogu biti prazni.");
         Podaci = podaci;
         podaci.ForEach(red => red.MojDataSet = this); // Postavljamo MojDataSet za svaki red
-        this.Historija = historija.ToList();
+        this.Historija = historija;
         Atributi = atributi;
         IskljuciAtribute("ID"); // Isključujemo ID ako postoji
         if (!string.IsNullOrWhiteSpace(ciljnaVarijabla))
@@ -132,6 +169,18 @@ public class MojDataSet
             SetCiljnaVarijabla(ciljnaVarijabla);
         }
         Analiziraj();
+    }
+
+    public MojDataSet Clone()
+    {
+        var clone = new MojDataSet(
+            Historija.ToList(),
+            Podaci.Select(x=>x.Clone()).ToList(),
+            Atributi.Select(a => a.Clone()).ToList(), 
+            CiljnaKolona);
+
+        clone.DodajHistorijskiZapis("Kloniran MojDataSet");
+        return clone;
     }
 
     public void SetCiljnaVarijabla(string? ciljnaVarijabla)
@@ -184,6 +233,29 @@ public class MojDataSet
         return (
             new MojDataSet(Historija, trening, Atributi, CiljnaKolona).DodajHistorijskiZapis($"Kreiran trening set {(1 - testProcenat):P0}"),
             new MojDataSet(Historija, test, Atributi, CiljnaKolona).DodajHistorijskiZapis($"Kreiran test set {testProcenat:P0}")
+        );
+    }
+    public (MojDataSet Train, MojDataSet Test) PodijeliStratifikovano(double testProcenat = 0.2, int? random_state = null)
+    {
+        var random = new Random(random_state ?? DateTime.Now.Millisecond);
+        var grupePoKlasi = Podaci.GroupBy(r => r.Klasa);
+        List<RedPodatka> trening = new();
+        List<RedPodatka> test = new();
+
+        foreach (var grupa in grupePoKlasi)
+        {
+            var izmijesani = grupa.OrderBy(x => random.Next()).ToList();
+            int granica = (int)(izmijesani.Count * (1 - testProcenat));
+
+            trening.AddRange(izmijesani.Take(granica));
+            test.AddRange(izmijesani.Skip(granica));
+        }
+
+        return (
+            new MojDataSet(Historija, trening, Atributi.Select(a => a.Clone()).ToList(), CiljnaKolona)
+                .DodajHistorijskiZapis($"Kreiran stratifikovani trening set {(1 - testProcenat):P0}"),
+            new MojDataSet(Historija, test, Atributi.Select(a => a.Clone()).ToList(), CiljnaKolona)
+                .DodajHistorijskiZapis($"Kreiran stratifikovani test set {testProcenat:P0}")
         );
     }
 
@@ -429,6 +501,17 @@ public class MojDataSet
             DodajHistorijskiZapis($"One-hot kodirana kolona '{nazivKolone}' u {vrijednosti.Count} novih kolona.");
         }
     }
+
+    public void StandardizirajSveNumeričkeKolone()
+    {
+        var sve = Atributi
+            .Where(a => a.TipAtributa == TipAtributa.Numericki && a.KoristiZaModel)
+            .Select(a => a.Naziv)
+            .ToArray();
+
+        StandardizirajNumerickeKolone(sve);
+    }
+
 
     /// <summary>
     /// Standardizuje samo odabrane numeričke kolone po formuli (x - mean) / std.

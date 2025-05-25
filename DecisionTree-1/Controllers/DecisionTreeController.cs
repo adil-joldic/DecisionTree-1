@@ -63,7 +63,9 @@ public class DecisionTreeController : ControllerBase
             }
         };
 
-        MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla);
+        MojDataSet fullDataSet0 = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla);
+
+        MojDataSet fullDataSet = fullDataSet0.Clone();
 
         var (q1, q3) = KvartilaHelper.IzracunajKvartile(fullDataSet.Podaci, "OutletSales");
 
@@ -92,7 +94,7 @@ public class DecisionTreeController : ControllerBase
         fullDataSet.TransformirajKolonuNumericku("Weight", (stara, vrijednostiKolone) => stara ?? MedianHelper.IzracunajMedijan(vrijednostiKolone));
 
 
-        (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
+        (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.PodijeliStratifikovano(zahtjev.TestProcenat, random_state: 42);
 
         StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
         GraphvizVisualizer.MakeDotFile(stablo.korijen, "Files/Sales3");
@@ -103,6 +105,73 @@ public class DecisionTreeController : ControllerBase
         {
             rezultat,
         });
+    }
+
+
+    [HttpGet]
+    public IActionResult SalesMultiple()
+    {
+        var fajl = "Files/Sales3.xlsx";
+        var ciljnaKolona = "SalesCategory";
+        var testProcenat = 0.2;
+
+        MojDataSet fullDataSet = _ucitavac.Ucitaj(fajl);
+
+        var (q1, q3) = KvartilaHelper.IzracunajKvartile(fullDataSet.Podaci, "OutletSales");
+
+        fullDataSet.DodajKolonuKategorijski(ciljnaKolona, red =>
+        {
+            if (!red.Atributi.TryGetValue("OutletSales", out var attr) || !attr.Broj.HasValue)
+                return null;
+
+            var val = attr.Broj.Value;
+            if (val < q1) return "Low";
+            if (val > q3) return "High";
+            return "Medium";
+        });
+
+        fullDataSet.SetCiljnaVarijabla(ciljnaKolona);
+        fullDataSet.IskljuciAtribute("OutletSales");
+
+        fullDataSet.TransformNumerickuKolonuPoGrupi(
+            nazivKolone: "Weight",
+            grupnaKolona1: "ProductType",
+            grupnaKolona2: "OutletType",
+            transformacija: (stara, grupe) => stara ?? MedianHelper.IzracunajMedijan(grupe),
+            opisTransformacijeZaHistoriju: "medijana"
+        );
+
+        fullDataSet.TransformirajKolonuNumericku("Weight", (stara, kolona) => stara ?? MedianHelper.IzracunajMedijan(kolona));
+
+        // za stablo ne treba one-hot encoding
+        // fullDataSet.NapraviOneHotEncodingSveKolone();
+
+        // Petlja kroz više konfiguracija stabla
+        var rezultati = new List<object>();
+
+        for (int maxDepth = 3; maxDepth <= 10; maxDepth++)
+        {
+            var parametri = new StabloKlasifikatorParamteri
+            {
+                MaxDepth = maxDepth,
+                MinSamples = 5
+            };
+
+            var (treningSet, testSet) = fullDataSet.Podijeli(testProcenat, random_state: 42);
+            var stablo = new StabloKlasifikator(treningSet, parametri);
+            var rezultat = fullDataSet.Evaluiraj(stablo, testSet);
+
+            rezultati.Add(new
+            {
+                parametri.MaxDepth,
+                rezultat.Accuracy,
+                AvgF1 = rezultat.AvgF1Score,
+                rezultat.VrijemeTreniranjaSek,
+                rezultat.VrijemeEvaluacijeSek
+            });
+        }
+
+        return Ok(rezultati);
     }
 
     [HttpGet]
