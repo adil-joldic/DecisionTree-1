@@ -81,11 +81,16 @@ public class DecisionTreeController : ControllerBase
         fullDataSet.CiljnaKolona = "SalesCategory";
         fullDataSet.IskljuciAtribute("OutletSales");
 
-        //List<double> weightKolona = MojDataSetHelper.DohvatiBrojeve(fullDataSet.Podaci, "Weight");
-        //double? medijana = MedianHelper.IzracunajMedijan(weightKolona);
-        //fullDataSet.TransformirajKolonuNumericku("Weight", x => x ?? medijana);
+        fullDataSet.TransformNumerickuKolonuPoGrupi(
+            nazivKolone: "Weight",
+            grupnaKolona1: "ProductType",
+            grupnaKolona2: "OutletType",
+            transformacija: (stara, vrijednostiGrupe) => stara ?? MedianHelper.IzracunajMedijan(vrijednostiGrupe),
+            opisTransformacijeZaHistoriju: "medijana"
+        );
 
-        fullDataSet.ImputirajNumerickuKolonuPoGrupi("Weight", "ProductType", "OutletType");
+        fullDataSet.TransformirajKolonuNumericku("Weight", (stara, vrijednostiKolone) => stara ?? MedianHelper.IzracunajMedijan(vrijednostiKolone));
+
 
         (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
 

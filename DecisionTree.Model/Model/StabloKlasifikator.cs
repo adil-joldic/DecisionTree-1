@@ -1,4 +1,5 @@
-﻿using DecisionTree.Model.Helper;
+﻿using System;
+using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
 using static StabloKlasifikator;
 
@@ -243,20 +244,20 @@ public class StabloKlasifikator : IKlasifikator
     }
 
 
-    public override string Predikcija(RedPodatka red)
+    public override string Predikcija(Dictionary<string, VrijednostAtributa> atributi)
     {
-        return PredikcijaRekurzivno(korijen, red);
+        return PredikcijaRekurzivno(korijen, atributi);
     }
 
-    private string PredikcijaRekurzivno(CvorStabla cvor, RedPodatka red)
+    private string PredikcijaRekurzivno(CvorStabla cvor, Dictionary<string, VrijednostAtributa> atributi)
     {
         if (cvor.JeList)
             return cvor.Klasa!;
 
-        if (!red.Atributi.ContainsKey(cvor.Atribut!))
+        if (!atributi.ContainsKey(cvor.Atribut!))
             return "Nepoznato";
 
-        var vrijednost = red.Atributi[cvor.Atribut!];
+        var vrijednost = atributi[cvor.Atribut!];
 
         if (cvor.IsNumericki && cvor.Threshold.HasValue)
         {
@@ -265,13 +266,13 @@ public class StabloKlasifikator : IKlasifikator
 
             string grana = vrijednost.Broj.Value <= cvor.Threshold.Value ? "<=" : ">";
             if (cvor.Djeca.TryGetValue(grana, out var dijete))
-                return PredikcijaRekurzivno(dijete, red);
+                return PredikcijaRekurzivno(dijete, atributi);
         }
         else
         {
             string kljuc = vrijednost.Tekst ?? "";
             if (cvor.Djeca.TryGetValue(kljuc, out var dijete))
-                return PredikcijaRekurzivno(dijete, red);
+                return PredikcijaRekurzivno(dijete, atributi);
         }
 
         return "Nepoznato";

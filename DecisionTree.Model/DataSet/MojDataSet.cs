@@ -1,4 +1,5 @@
-﻿using DecisionTree.Model.DataSet;
+﻿using System.Text.RegularExpressions;
+using DecisionTree.Model.DataSet;
 using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
 using static AtributMeta;
@@ -199,7 +200,7 @@ public class MojDataSet
         foreach (var red in testSkup.Podaci)
         {
             string stvarna = red.Klasa;
-            string predikcija = klasifikator.Predikcija(red);
+            string predikcija = klasifikator.Predikcija(red.Atributi);
 
             // Broj stvarnih po klasama
             if (!rezultat.SveKlase.ContainsKey(stvarna))
@@ -318,16 +319,17 @@ public class MojDataSet
         }
     }
 
-    public void TransformirajKolonuNumericku(string nazivKolone, Func<double?, double?> transformacija)
+    public void TransformirajKolonuNumericku(string nazivKolone, Func<double?, List<double>, double?> transformacija)
     {
         int updated = 0;
+        List<double> brojevi = MojDataSetHelper.DohvatiBrojeve(Podaci, nazivKolone);
+
         foreach (var red in Podaci)
         {
             if (red.Atributi.TryGetValue(nazivKolone, out var attr) && attr.TipAtributa == TipAtributa.Numericki)
             {
                 double? stara = attr.Broj;
-       
-                double? nova = transformacija(stara);
+                double? nova = transformacija(stara, brojevi);
                 if (nova != stara)
                 {
                     red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(nova);
@@ -339,35 +341,35 @@ public class MojDataSet
         DodajHistorijskiZapis($"Transformisana numerička kolona '{nazivKolone}' putem funkcije. Modifikovano: {updated}");
     }
 
-    public void ImputirajNumerickuKolonuPoGrupi(string nazivKolone, string grupnaKolona1, string grupnaKolona2)
+    public void TransformNumerickuKolonuPoGrupi(
+        string nazivKolone,
+        string grupnaKolona1,
+        string grupnaKolona2,
+        Func<double?, List<double>, double?> transformacija,
+        string? opisTransformacijeZaHistoriju = null
+    )
     {
         var grupe = GrupisanjeHelper.GrupisiPo2Kolone(Podaci, grupnaKolona1, grupnaKolona2);
-
-        var medijani = grupe.ToDictionary(
-            g => g.Key,
-            g => MedianHelper.IzracunajMedijan(MojDataSetHelper.DohvatiBrojeve(g.Value, nazivKolone))
-        );
-
         int brojModifikovanih = 0;
 
-        foreach (var red in Podaci)
+        foreach ((var grupaKey, List<RedPodatka> redoviUGrupi) in grupe)
         {
-            var key = (
-                red.GetText(grupnaKolona1) ?? "__NULL__",
-                red.GetText(grupnaKolona2) ?? "__NULL__"
-            );
+            List<double> vrijednostiKolone = MojDataSetHelper.DohvatiBrojeve(redoviUGrupi, nazivKolone);
 
-            if (red.GetBroj(nazivKolone) == null &&
-                medijani.TryGetValue(key, out double? medijan) &&
-                medijan.HasValue)
+            foreach (var red in redoviUGrupi)
             {
-                red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(medijan);
-                brojModifikovanih++;
+                double? stara = red.GetBroj(nazivKolone);
+                double? nova = transformacija(stara, vrijednostiKolone);
+
+                if (stara != nova)
+                {
+                    red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(nova);
+                    brojModifikovanih++;
+                }
             }
         }
 
-        DodajHistorijskiZapis($"Transformisana numerička kolona '{nazivKolone}' imputacijom po grupama '{grupnaKolona1}', '{grupnaKolona2}'. Modifikovano: {brojModifikovanih}");
+        var agregatOpis = opisTransformacijeZaHistoriju ?? transformacija.Method.Name;
+        DodajHistorijskiZapis($"Transformisana numerička kolona '{nazivKolone}' imputacijom ({agregatOpis}) po grupama '{grupnaKolona1}', '{grupnaKolona2}'. Modifikovano: {brojModifikovanih}");
     }
-
-
 }

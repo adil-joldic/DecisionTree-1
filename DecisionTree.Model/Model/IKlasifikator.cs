@@ -23,6 +23,6 @@ public abstract class IKlasifikator
                   );
     }
 
-    public abstract string Predikcija(RedPodatka red);
+    public abstract string Predikcija(Dictionary<string, VrijednostAtributa> atributi);
 }
 
