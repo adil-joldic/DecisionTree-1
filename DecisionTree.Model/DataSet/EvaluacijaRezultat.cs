@@ -1,4 +1,4 @@
-﻿namespace DecisionTree.Model.Helper;
+﻿namespace DecisionTree.Model.DataSet;
 
 public class EvaluacijaRezultat
 {
@@ -23,6 +23,7 @@ public class EvaluacijaRezultat
     public required List<AtributMeta> AtributiMeta { get; set; } = new();
     public double VrijemeEvaluacijeSek { get; internal set; }
     public double VrijemeTreniranjaSek { get; internal set; }
+    public Dictionary<string, object> DodatniInfo { get; internal set; }
 
     public void Ispisi()
     {

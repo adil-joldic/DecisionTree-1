@@ -2,14 +2,27 @@
 
 public abstract class IKlasifikator
 {
-    public abstract string Naziv { get; }
-    public abstract object Parametri { get; }
+    public string Naziv { get; init; }
+    public Dictionary<string, object> Parametri { get; init; } = new();
+    public Dictionary<string, object> DodatniInfo { get; init; } = new();
     public double VrijemeTreniranjaSek { get; init; }
 
-    /// <summary>
-    /// Vraća naziv klase na osnovu atributa.
-    /// </summary>
-    /// <param name="atributi">Ulazni atributi podatka</param>
-    /// <returns>Naziv predikcije (klase)</returns>
+    protected IKlasifikator(string naziv, object parametri)
+    {
+        Naziv = naziv;
+        Parametri = PretvoriUParametre(parametri);
+    }
+
+    private static Dictionary<string, object> PretvoriUParametre(object obj)
+    {
+        return obj.GetType()
+                  .GetProperties()
+                  .ToDictionary(
+                      prop => prop.Name,
+                      prop => prop.GetValue(obj) ?? "null"
+                  );
+    }
+
     public abstract string Predikcija(RedPodatka red);
 }
+

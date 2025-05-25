@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DecisionTree.Model.Model
+namespace DecisionTree.Model.Helper
 {
     public class KvartilaHelper
     {
@@ -22,7 +22,7 @@ namespace DecisionTree.Model.Model
 
             int count = vrijednosti.Count;
             double q1 = vrijednosti[count / 4];
-            double q3 = vrijednosti[(3 * count) / 4];
+            double q3 = vrijednosti[3 * count / 4];
 
             return (q1, q3);
         }

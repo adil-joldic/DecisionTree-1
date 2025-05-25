@@ -1,5 +1,6 @@
 ﻿namespace DecisionTree_1.Controllers;
 
+using DecisionTree.Model.DataSet;
 using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
 using Microsoft.AspNetCore.Mvc;
@@ -9,9 +10,9 @@ using static StabloKlasifikator;
 [Route("api/[controller]/[action]")]
 public class DecisionTreeController : ControllerBase
 {
-    private readonly ExcelAlati _ucitavac;
+    private readonly ExcelHelper _ucitavac;
 
-    public DecisionTreeController(ExcelAlati ucitavac)
+    public DecisionTreeController(ExcelHelper ucitavac)
     {
         _ucitavac = ucitavac;
     }
@@ -62,7 +63,7 @@ public class DecisionTreeController : ControllerBase
             }
         };
 
-        MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla, zahtjev.CiljnaVarijabla);
+        MojDataSet fullDataSet = _ucitavac.Ucitaj(zahtjev.PutanjaDoFajla);
 
         var (q1, q3) = KvartilaHelper.IzracunajKvartile(fullDataSet.Podaci, "OutletSales");
 
@@ -78,10 +79,19 @@ public class DecisionTreeController : ControllerBase
         });
 
         fullDataSet.CiljnaKolona = "SalesCategory";
+        fullDataSet.IskljuciAtribute("OutletSales");
+
+        //List<double> weightKolona = MojDataSetHelper.DohvatiBrojeve(fullDataSet.Podaci, "Weight");
+        //double? medijana = MedianHelper.IzracunajMedijan(weightKolona);
+        //fullDataSet.TransformirajKolonuNumericku("Weight", x => x ?? medijana);
+
+        fullDataSet.ImputirajNumerickuKolonuPoGrupi("Weight", "ProductType", "OutletType");
 
         (MojDataSet treningSet, MojDataSet testSet) = fullDataSet.Podijeli(zahtjev.TestProcenat, random_state: 42);
 
         StabloKlasifikator stablo = new StabloKlasifikator(treningSet, zahtjev.KlasifikatorParamteri);
+        GraphvizVisualizer.MakeDotFile(stablo.korijen, "Files/Sales3");
+
         EvaluacijaRezultat rezultat = fullDataSet.Evaluiraj(stablo, testSet);
 
         return Ok(new

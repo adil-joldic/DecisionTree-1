@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DecisionTree.Model.Model
+namespace DecisionTree.Model.Helper
 {
     public class GiniHelper
     {

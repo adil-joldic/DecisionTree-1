@@ -2,9 +2,9 @@
 
 namespace DecisionTree.Model.Helper;
 
-public class ExcelAlati
+public class ExcelHelper
 {
-    public MojDataSet Ucitaj(string putanja, string nazivCiljneKolone)
+    public MojDataSet Ucitaj(string putanja, string? ciljnaVarijabla = null)
     {
         if (!File.Exists(putanja))
             throw new Exception("Excel fajl nije pronađen.");
@@ -22,33 +22,23 @@ public class ExcelAlati
             zaglavlje.Add(lista.Cells[1, i].Text.Trim());
 
         var privremeniPodaci = new List<Dictionary<string, string>>();
-        var klase = new List<string>();
 
         for (int i = 2; i <= brojRedova; i++)
         {
             var red = new Dictionary<string, string>();
-            string? klasa = null;
 
             for (int j = 1; j <= brojKolona; j++)
             {
                 string naziv = zaglavlje[j - 1];
                 string vrijednost = lista.Cells[i, j].Text.Trim();
 
-                if (naziv == nazivCiljneKolone)
-                    klasa = vrijednost;
-                else
-                    red[naziv] = vrijednost;
+                red[naziv] = vrijednost;
             }
 
-            if (!string.IsNullOrWhiteSpace(klasa))
-            {
-                privremeniPodaci.Add(red);
-                klase.Add(klasa);
-            }
+            privremeniPodaci.Add(red);
         }
 
         var atributiMeta = zaglavlje
-            .Where(n => n != nazivCiljneKolone)
             .Select(n => new AtributMeta
             {
                 Naziv = n,
@@ -66,7 +56,6 @@ public class ExcelAlati
         {
             var red = new RedPodatka
             {
-                Klasa = klase[i],
                 Atributi = new Dictionary<string, VrijednostAtributa>()
             };
 
@@ -80,15 +69,17 @@ public class ExcelAlati
                 }
                 else if (meta.TipAtributa == TipAtributa.Numericki)
                 {
-                    double.TryParse(vrijednost, out var broj);
-                    red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(broj);
+                    if (double.TryParse(vrijednost, out var broj))
+                        red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(broj);
+                    else
+                        red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(null);
                 }
             }
 
             redovi.Add(red);
         }
 
-        return new MojDataSet([putanja], redovi, atributiMeta, nazivCiljneKolone);
+        return new MojDataSet([putanja], redovi, atributiMeta, ciljnaVarijabla);
     }
 
 }

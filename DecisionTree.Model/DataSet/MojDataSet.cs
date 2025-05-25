@@ -1,4 +1,5 @@
-﻿using DecisionTree.Model.Helper;
+﻿using DecisionTree.Model.DataSet;
+using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
 using static AtributMeta;
 using static AtributMeta.KategorickiInfo;
@@ -24,7 +25,7 @@ public class VrijednostAtributa
         {
             Broj = null,
             Tekst = input,
-            TipAtributa = TipAtributa.Numericki
+            TipAtributa = TipAtributa.Kategoricki
         };
     }
 
@@ -49,6 +50,7 @@ public class AtributMeta
         public required double? Max { get; set; }
         public required double? SrednjaVrijednost { get; set; }
         public required double? StandardnaDevijacija { get; set; }
+        public required double? Medijana { get; set; }
     }
 
     public class KategorickiInfo
@@ -85,7 +87,19 @@ public class RedPodatka
     /// <summary>
     /// Oznaka ciljne klase (npr. "Igraj", "Ne igraj")
     /// </summary>
-    public string Klasa { get; set; } = string.Empty;
+    public string Klasa => Atributi[MojDataSet.CiljnaKolona!]!.Tekst!;
+
+    public MojDataSet MojDataSet { get; set; } = null!; // Postavlja se prilikom dodavanja u MojDataSet
+
+    public string? GetText(string naziv)
+    {
+        return Atributi.TryGetValue(naziv, out var v) ? v?.Tekst : null;
+    }
+
+    public double? GetBroj(string naziv)
+    {
+        return Atributi.TryGetValue(naziv, out var v) ? v?.Broj : null;
+    }
 }
 
 
@@ -94,23 +108,42 @@ public class MojDataSet
     public List<string> Historija { get; set; } = [];
     public List<RedPodatka> Podaci { get; set; } = new();
     public List<AtributMeta> Atributi { get; set; } = new();
-    public string CiljnaKolona { get; set; }
+    public string? CiljnaKolona { get; set; }
 
-    public MojDataSet(IEnumerable<string> historija, List<RedPodatka> podaci, List<AtributMeta> atributi, string ciljnaKolona)
+    public MojDataSet(IEnumerable<string> historija, List<RedPodatka> podaci, List<AtributMeta> atributi, string? ciljnaVarijabla = null)
     {
         if (podaci.Count == 0)
             throw new ArgumentException("Podaci ne mogu biti prazni.");
         Podaci = podaci;
+        podaci.ForEach(red => red.MojDataSet = this); // Postavljamo MojDataSet za svaki red
         this.Historija = historija.ToList();
-        CiljnaKolona = ciljnaKolona;
         Atributi = atributi;
         IskljuciAtribute("ID"); // Isključujemo ID ako postoji
+        if (!string.IsNullOrWhiteSpace(ciljnaVarijabla))
+        {
+            SetCiljnaVarijabla(ciljnaVarijabla);
+        }
         Analiziraj();
+    }
+
+    public void SetCiljnaVarijabla(string? ciljnaVarijabla)
+    {
+        if (string.IsNullOrWhiteSpace(ciljnaVarijabla))
+            throw new ArgumentException("Ciljna kolona ne može biti prazna.");
+
+        var meta = Atributi.SingleOrDefault(a => a.Naziv == ciljnaVarijabla);
+        if (meta == null)
+            throw new ArgumentException($"Atribut '{ciljnaVarijabla}' ne postoji u metapodacima.");
+
+        meta.KoristiZaModel = false;
+        CiljnaKolona = ciljnaVarijabla;
+        DodajHistorijskiZapis($"Određena ciljna varijabla  ---> '{ciljnaVarijabla}'");
     }
 
     public MojDataSet DodajHistorijskiZapis(string historijskiZapis)
     {
-        return new MojDataSet([.. Historija, historijskiZapis], Podaci, Atributi, CiljnaKolona);
+        this.Historija.Add(historijskiZapis);
+        return this;
     }
 
     public void IskljuciAtribute(params string[] nazivi)
@@ -141,8 +174,8 @@ public class MojDataSet
         List<RedPodatka> test = izmijesano.Skip(granica).ToList();
 
         return (
-            new MojDataSet(Historija, trening, Atributi, CiljnaKolona).DodajHistorijskiZapis($"trening {(1 - testProcenat):P0}"),
-            new MojDataSet(Historija, test, Atributi, CiljnaKolona).DodajHistorijskiZapis($"test {testProcenat:P0}")
+            new MojDataSet(Historija, trening, Atributi, CiljnaKolona).DodajHistorijskiZapis($"Kreiran trening set {(1 - testProcenat):P0}"),
+            new MojDataSet(Historija, test, Atributi, CiljnaKolona).DodajHistorijskiZapis($"Kreiran test set {testProcenat:P0}")
         );
     }
 
@@ -209,6 +242,7 @@ public class MojDataSet
         rezultat.UkupnoTestiranih = ukupno;
         rezultat.UspjesnoPredvidjeno = tacni;
         rezultat.VrijemeEvaluacijeSek = stopwatchEvaluacija.ElapsedMilliseconds / 1000.0; // u sekundama
+        rezultat.DodatniInfo = klasifikator.DodatniInfo;
 
         return rezultat;
     }
@@ -225,6 +259,7 @@ public class MojDataSet
             string? vrijednost = funkcija(red);
             red.Atributi[nazivKolone] = VrijednostAtributa.NapraviKategorijski(vrijednost);
         }
+        DodajHistorijskiZapis($"Nova kategorijska kolona ---> '{nazivKolone}'");
     }
     public void DodajKolonuNumericki(string nazivKolone, Func<RedPodatka, double?> funkcija)
     {
@@ -238,59 +273,101 @@ public class MojDataSet
             double? vrijednost = funkcija(red);
             red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(vrijednost);
         }
+        DodajHistorijskiZapis($"Nova numerička kolona ---> '{nazivKolone}'");
     }
 
     public void Analiziraj()
     {
         foreach (var meta in Atributi)
         {
-            var vrijednosti = Podaci
-                .Select(p => p.Atributi.TryGetValue(meta.Naziv, out var val) ? val : null)
-                .Where(v => v != null)
-                .ToList();
-
             if (meta.TipAtributa == TipAtributa.Kategoricki)
             {
-                var tekstualne = vrijednosti
-                    .Select(v => v!.Tekst)
-                    .Where(t => !string.IsNullOrWhiteSpace(t))
-                    .ToList();
+                var tekstualne = MojDataSetHelper.DohvatiKategorije(Podaci, meta.Naziv, sortiraj: false);
 
                 meta.Kategoricki = new KategorickiInfo
                 {
-                    BrojRazlicitihVrijednosti = tekstualne.Distinct().Count(),
-                    Top5Najcescih = tekstualne
-                        .GroupBy(t => t)
-                        .OrderByDescending(g => g.Count())
-                        .Take(5)
-                        .Select(g => new VrijednostBrojac{ Vrijednost = g.Key!, BrojPojavljivanja = g.Count() })
+                    BrojRazlicitihVrijednosti = tekstualne.Count(),
+                    Top5Najcescih = DistribucijaHelper.TopVrijednosti(tekstualne, 5)
+                        .Select(t => new VrijednostBrojac
+                        {
+                            Vrijednost = t.vrijednost,
+                            BrojPojavljivanja = t.count
+                        })
                         .ToList()
                 };
             }
             else if (meta.TipAtributa == TipAtributa.Numericki)
             {
-                var brojevi = vrijednosti
-                    .Select(v => v!.Broj)
-                    .Where(b => b.HasValue)
-                    .Select(b => b!.Value)
-                    .ToList();
+                List<double> brojevi = MojDataSetHelper.DohvatiBrojeve(Podaci, meta.Naziv, sortiraj: true);
 
                 if (brojevi.Count > 0)
                 {
-                    double prosjek = brojevi.Average();
-                    double std = Math.Sqrt(brojevi.Average(b => Math.Pow(b - prosjek, 2)));
-
+                    var (min, max, srednja, std) = StatistikaHelper.Statistika(brojevi);
+                    var medijana = MedianHelper.IzracunajMedijan(brojevi);
 
                     meta.Numericki = new NumerickiInfo
                     {
-                        Min = brojevi.Min(),
-                        Max = brojevi.Max(),
-                        SrednjaVrijednost = prosjek,
-                        StandardnaDevijacija = std
+                        Min = min,
+                        Max = max,
+                        SrednjaVrijednost = srednja,
+                        StandardnaDevijacija = std,
+                        Medijana = medijana
                     };
                 }
             }
         }
     }
+
+    public void TransformirajKolonuNumericku(string nazivKolone, Func<double?, double?> transformacija)
+    {
+        int updated = 0;
+        foreach (var red in Podaci)
+        {
+            if (red.Atributi.TryGetValue(nazivKolone, out var attr) && attr.TipAtributa == TipAtributa.Numericki)
+            {
+                double? stara = attr.Broj;
+       
+                double? nova = transformacija(stara);
+                if (nova != stara)
+                {
+                    red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(nova);
+                    updated++;
+                }
+            }
+        }
+
+        DodajHistorijskiZapis($"Transformisana numerička kolona '{nazivKolone}' putem funkcije. Modifikovano: {updated}");
+    }
+
+    public void ImputirajNumerickuKolonuPoGrupi(string nazivKolone, string grupnaKolona1, string grupnaKolona2)
+    {
+        var grupe = GrupisanjeHelper.GrupisiPo2Kolone(Podaci, grupnaKolona1, grupnaKolona2);
+
+        var medijani = grupe.ToDictionary(
+            g => g.Key,
+            g => MedianHelper.IzracunajMedijan(MojDataSetHelper.DohvatiBrojeve(g.Value, nazivKolone))
+        );
+
+        int brojModifikovanih = 0;
+
+        foreach (var red in Podaci)
+        {
+            var key = (
+                red.GetText(grupnaKolona1) ?? "__NULL__",
+                red.GetText(grupnaKolona2) ?? "__NULL__"
+            );
+
+            if (red.GetBroj(nazivKolone) == null &&
+                medijani.TryGetValue(key, out double? medijan) &&
+                medijan.HasValue)
+            {
+                red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(medijan);
+                brojModifikovanih++;
+            }
+        }
+
+        DodajHistorijskiZapis($"Transformisana numerička kolona '{nazivKolone}' imputacijom po grupama '{grupnaKolona1}', '{grupnaKolona2}'. Modifikovano: {brojModifikovanih}");
+    }
+
 
 }

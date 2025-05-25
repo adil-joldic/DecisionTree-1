@@ -1,4 +1,5 @@
-﻿using DecisionTree.Model.Model;
+﻿using DecisionTree.Model.Helper;
+using DecisionTree.Model.Model;
 using static StabloKlasifikator;
 
 public class CvorStabla
@@ -94,28 +95,46 @@ public class CvorStabla
 
 public class StabloKlasifikator : IKlasifikator
 {
-    private readonly CvorStabla _korijen;
+    public readonly CvorStabla korijen;
 
     public class StabloKlasifikatorParamteri
     {
         public int MaxDepth { get; set; } = 10;
         public int MinSamples { get; set; } = 1;
     }
-    public override string Naziv => nameof(StabloKlasifikator);
-    public override object Parametri => StabloParamteri;
-
     public StabloKlasifikatorParamteri StabloParamteri { get; }
 
-    public StabloKlasifikator(MojDataSet podaci, StabloKlasifikatorParamteri stabloParamteri)
+    public StabloKlasifikator(MojDataSet podaci, StabloKlasifikatorParamteri stabloParamteri): base(nameof(StabloKlasifikator), stabloParamteri)
     {
         ArgumentNullException.ThrowIfNull(podaci, nameof(podaci));
         ArgumentNullException.ThrowIfNull(stabloParamteri, nameof(stabloParamteri));
         var stopwatchTreniranje = System.Diagnostics.Stopwatch.StartNew();
         StabloParamteri = stabloParamteri;
-        _korijen = IzgradiStabloRekurzija(podaci.Podaci, podaci.Atributi, trenutnaDubina: 0);
+        korijen = IzgradiStabloRekurzija(podaci.Podaci, podaci.Atributi.Where(x=>x.KoristiZaModel).ToList(), trenutnaDubina: 0);
         stopwatchTreniranje.Stop();
         this.VrijemeTreniranjaSek = stopwatchTreniranje.ElapsedMilliseconds / 1000.0;
+        base.DodatniInfo["VaznostAtributa"] = DajVaznostAtributa();
+        base.DodatniInfo["DubinaStabla"] = IzracunajDubinu(korijen);
+        base.DodatniInfo["BrojCvorova"] = BrojiCvorove(korijen);
     }
+    private int BrojiCvorove(CvorStabla cvor)
+    {
+        if (cvor.JeList)
+            return 1;
+
+        return 1 + cvor.Djeca.Values.Sum(BrojiCvorove);
+    }
+    private int IzracunajDubinu(CvorStabla cvor)
+    {
+        if (cvor.JeList)
+            return 1;
+
+        return 1 + cvor.Djeca.Values
+            .Select(IzracunajDubinu)
+            .DefaultIfEmpty(0)
+            .Max();
+    }
+
     private CvorStabla IzgradiStabloRekurzija(
      List<RedPodatka> podaci,
      List<AtributMeta> atributi,
@@ -226,7 +245,7 @@ public class StabloKlasifikator : IKlasifikator
 
     public override string Predikcija(RedPodatka red)
     {
-        return PredikcijaRekurzivno(_korijen, red);
+        return PredikcijaRekurzivno(korijen, red);
     }
 
     private string PredikcijaRekurzivno(CvorStabla cvor, RedPodatka red)
@@ -257,5 +276,33 @@ public class StabloKlasifikator : IKlasifikator
 
         return "Nepoznato";
     }
+
+    public Dictionary<string, int> DajVaznostAtributa()
+    {
+        var brojac = new Dictionary<string, int>();
+        BrojiAtributeUStablu(korijen, brojac);
+        return brojac
+         .OrderByDescending(kv => kv.Value)
+         .ToDictionary(kv => kv.Key, kv => kv.Value);
+    }
+
+    private void BrojiAtributeUStablu(CvorStabla cvor, Dictionary<string, int> brojac)
+    {
+        if (cvor == null || cvor.JeList) return;
+
+        if (!string.IsNullOrEmpty(cvor.Atribut))
+        {
+            if (!brojac.ContainsKey(cvor.Atribut))
+                brojac[cvor.Atribut] = 0;
+            brojac[cvor.Atribut]++;
+        }
+
+        foreach (var dijete in cvor.Djeca.Values)
+        {
+            BrojiAtributeUStablu(dijete, brojac);
+        }
+    }
+
+
 }
 
