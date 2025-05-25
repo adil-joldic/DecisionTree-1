@@ -65,14 +65,14 @@ public class ExcelHelper
 
                 if (meta.TipAtributa == TipAtributa.Kategoricki)
                 {
-                    red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviKategorijski(vrijednost);
+                    red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviKategorijski(red, vrijednost);
                 }
                 else if (meta.TipAtributa == TipAtributa.Numericki)
                 {
                     if (double.TryParse(vrijednost, out var broj))
-                        red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(broj);
+                        red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(red, broj);
                     else
-                        red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(null);
+                        red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(red, null);
                 }
             }
 

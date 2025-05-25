@@ -1,7 +1,5 @@
-﻿using System;
-using DecisionTree.Model.Helper;
+﻿using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
-using static StabloKlasifikator;
 
 public class CvorStabla
 {

@@ -1,5 +1,4 @@
-﻿using System.Text.RegularExpressions;
-using DecisionTree.Model.DataSet;
+﻿using DecisionTree.Model.DataSet;
 using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
 using static AtributMeta;
@@ -13,30 +12,38 @@ public enum TipAtributa
 
 public class VrijednostAtributa
 {
-    public string? Tekst { get; set; }
-    public double? Broj { get; set; }
+    public required string? Tekst { get; set; }
+    public required double? Broj { get; set; }
 
     public bool JeNumericki => TipAtributa == TipAtributa.Numericki;
 
-    public TipAtributa TipAtributa { get; set; }
+    public required TipAtributa TipAtributa { get; set; }
 
-    public static VrijednostAtributa NapraviKategorijski(string? input)
+    public required RedPodatka RedPodatka { get; init; }
+
+    private VrijednostAtributa()
+    {
+        
+    }
+    public static VrijednostAtributa NapraviKategorijski(RedPodatka redPodatka, string? input)
     {
         return new VrijednostAtributa
         {
             Broj = null,
             Tekst = input,
-            TipAtributa = TipAtributa.Kategoricki
+            TipAtributa = TipAtributa.Kategoricki,
+            RedPodatka = redPodatka
         };
     }
 
-    public static VrijednostAtributa NapraviNumericki(double? input)
+    public static VrijednostAtributa NapraviNumericki(RedPodatka redPodatka, double? input)
     {
         return new VrijednostAtributa
         {
             Broj = input,
             Tekst = null,
-            TipAtributa = TipAtributa.Numericki
+            TipAtributa = TipAtributa.Numericki,
+            RedPodatka = redPodatka
         };
     }
 
@@ -258,7 +265,7 @@ public class MojDataSet
         foreach (var red in Podaci)
         {
             string? vrijednost = funkcija(red);
-            red.Atributi[nazivKolone] = VrijednostAtributa.NapraviKategorijski(vrijednost);
+            red.Atributi[nazivKolone] = VrijednostAtributa.NapraviKategorijski(red, vrijednost);
         }
         DodajHistorijskiZapis($"Nova kategorijska kolona ---> '{nazivKolone}'");
     }
@@ -272,7 +279,7 @@ public class MojDataSet
         foreach (var red in Podaci)
         {
             double? vrijednost = funkcija(red);
-            red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(vrijednost);
+            red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(red, vrijednost);
         }
         DodajHistorijskiZapis($"Nova numerička kolona ---> '{nazivKolone}'");
     }
@@ -332,7 +339,7 @@ public class MojDataSet
                 double? nova = transformacija(stara, brojevi);
                 if (nova != stara)
                 {
-                    red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(nova);
+                    red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(red, nova);
                     updated++;
                 }
             }
@@ -363,7 +370,7 @@ public class MojDataSet
 
                 if (stara != nova)
                 {
-                    red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(nova);
+                    red.Atributi[nazivKolone] = VrijednostAtributa.NapraviNumericki(red, nova);
                     brojModifikovanih++;
                 }
             }
@@ -372,4 +379,98 @@ public class MojDataSet
         var agregatOpis = opisTransformacijeZaHistoriju ?? transformacija.Method.Name;
         DodajHistorijskiZapis($"Transformisana numerička kolona '{nazivKolone}' imputacijom ({agregatOpis}) po grupama '{grupnaKolona1}', '{grupnaKolona2}'. Modifikovano: {brojModifikovanih}");
     }
+
+    /// <summary>
+    ///     PretvoriKategorijskeUAtributneKolone
+    ///     get_dummies iz python pandas biblioteke.
+    /// </summary>
+    public void NapraviOneHotEncodingSveKolone(bool ukloniOriginalneKolone = true)
+    {
+        var metaAtributi = Atributi
+            .Where(a => a.TipAtributa == TipAtributa.Kategoricki && a.KoristiZaModel)
+            .ToList();
+
+        NapraviOneHotZaOdabraneKolone([..metaAtributi.Select(x=>x.Naziv)], ukloniOriginalneKolone);
+    }
+
+    public void NapraviOneHotZaOdabraneKolone(string[] naziviKolona, bool ukloniOriginalneKolone = true)
+    {
+        foreach (var nazivKolone in naziviKolona)
+        {
+            var meta = Atributi.FirstOrDefault(a => a.Naziv == nazivKolone);
+            if (meta == null || meta.TipAtributa != TipAtributa.Kategoricki || !meta.KoristiZaModel)
+                continue;
+
+            var vrijednosti = MojDataSetHelper.DohvatiKategorije(Podaci, nazivKolone, sortiraj: false);
+
+            foreach (string vrijednost in vrijednosti)
+            {
+                string novaKolona = $"{nazivKolone}_{vrijednost}";
+                Atributi.Add(new AtributMeta
+                {
+                    Naziv = novaKolona,
+                    TipAtributa = TipAtributa.Numericki,
+                    KoristiZaModel = true
+                });
+
+                foreach (var red in Podaci)
+                {
+                    string? vrijednostReda = red.GetText(nazivKolone);
+                    double vrijednostBroj = (vrijednostReda == vrijednost) ? 1.0 : 0.0;
+                    red.Atributi[novaKolona] = VrijednostAtributa.NapraviNumericki(red, vrijednostBroj);
+                }
+            }
+
+            if (ukloniOriginalneKolone)
+            {
+                meta.KoristiZaModel = false;
+            }
+
+            DodajHistorijskiZapis($"One-hot kodirana kolona '{nazivKolone}' u {vrijednosti.Count} novih kolona.");
+        }
+    }
+
+    /// <summary>
+    /// Standardizuje samo odabrane numeričke kolone po formuli (x - mean) / std.
+    /// </summary>
+    /// <param name="naziviKolona">Nazivi numeričkih kolona koje treba standardizirati.</param>
+    public void StandardizirajNumerickeKolone(string[] naziviKolona)
+    {
+        int ukupno = 0;
+
+        var numerickiAtributi = Atributi
+            .Where(a =>
+                a.TipAtributa == TipAtributa.Numericki &&
+                a.KoristiZaModel &&
+                naziviKolona.Contains(a.Naziv))
+            .ToList();
+
+        foreach (AtributMeta? meta in numerickiAtributi)
+        {
+            var info = meta.Numericki;
+            if (info == null || !info.SrednjaVrijednost.HasValue || !info.StandardnaDevijacija.HasValue)
+                continue;
+
+            double srednja = info.SrednjaVrijednost.Value;
+            double std = info.StandardnaDevijacija.Value;
+
+            if (std == 0)
+                continue; // izbjegavanje dijeljenja s nulom
+
+            foreach (var red in Podaci)
+            {
+                VrijednostAtributa attr = red.Atributi[meta.Naziv];
+                if (attr.TipAtributa != TipAtributa.Numericki || !attr.Broj.HasValue)
+                    continue;
+
+                double original = attr.Broj.Value;
+                double standardized = (original - srednja) / std;
+                red.Atributi[meta.Naziv] = VrijednostAtributa.NapraviNumericki(red, standardized);
+                ukupno++;
+            }
+        }
+
+        DodajHistorijskiZapis($"Standardizirane {naziviKolona.Length} kolone. Ukupno promjena: {ukupno}.");
+    }
+
 }
