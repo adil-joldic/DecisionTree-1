@@ -94,5 +94,41 @@ namespace DecisionTree.Model.Helper
 
             return (najboljiGini, najboljiThreshold);
         }
+
+        public static (double gini, double? najboljiThreshold) IzracunajGiniSaThresholdovima(
+            List<RedPodatka> podaci,
+            string nazivAtributa,
+            List<double> thresholds)
+        {
+            double najboljiGini = double.MaxValue;
+            double? najboljiThreshold = null;
+
+            foreach (double t in thresholds)
+            {
+                var lijevi = podaci
+                    .Where(p => p.Atributi[nazivAtributa].Broj.HasValue && p.Atributi[nazivAtributa].Broj.Value <= t)
+                    .ToList();
+
+                var desni = podaci
+                    .Where(p => p.Atributi[nazivAtributa].Broj.HasValue && p.Atributi[nazivAtributa].Broj.Value > t)
+                    .ToList();
+
+                if (lijevi.Count == 0 || desni.Count == 0)
+                    continue;
+
+                double giniLijevi = GiniHelper.IzracunajGiniIndeks(lijevi);
+                double giniDesni = GiniHelper.IzracunajGiniIndeks(desni);
+                double ukupanGini = (lijevi.Count * giniLijevi + desni.Count * giniDesni) / (lijevi.Count + desni.Count);
+
+                if (ukupanGini < najboljiGini)
+                {
+                    najboljiGini = ukupanGini;
+                    najboljiThreshold = t;
+                }
+            }
+
+            return (najboljiGini, najboljiThreshold);
+        }
+
     }
 }

@@ -59,7 +59,8 @@ public class DecisionTreeController : ControllerBase
             KlasifikatorParamteri = new()
             {
                 MaxDepth = 5,
-                MinSamples = 5
+                MinSamples = 5,
+                BrojGrupaZaNumericke = 5
             }
         };
 

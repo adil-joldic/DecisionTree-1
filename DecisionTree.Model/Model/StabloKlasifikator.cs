@@ -1,4 +1,5 @@
-﻿using DecisionTree.Model.Helper;
+﻿using DecisionTree.Model.DataSet;
+using DecisionTree.Model.Helper;
 using DecisionTree.Model.Model;
 
 public class CvorStabla
@@ -100,6 +101,7 @@ public class StabloKlasifikator : IKlasifikator
     {
         public int MaxDepth { get; set; } = 10;
         public int MinSamples { get; set; } = 1;
+        public int BrojGrupaZaNumericke { get; set; } = 5;
     }
     public StabloKlasifikatorParamteri StabloParamteri { get; }
 
@@ -164,7 +166,9 @@ public class StabloKlasifikator : IKlasifikator
             }
             else if (atribut.TipAtributa == TipAtributa.Numericki)
             {
-                (gini, threshold) = GiniHelper.IzracunajGiniSaGrupama(podaci, atribut.Naziv, brojGrupa: 100);
+                List<double> vrijednosti = MojDataSetHelper.DohvatiBrojeve(podaci, atribut.Naziv);
+                List<double> kvantilniThresholdovi = KvartilaHelper.KvantilniThresholdovi(vrijednosti, brojGrupa: StabloParamteri.BrojGrupaZaNumericke);
+                (gini, threshold) = GiniHelper.IzracunajGiniSaThresholdovima(podaci, atribut.Naziv, kvantilniThresholdovi);
             }
             else continue;
 

@@ -26,5 +26,20 @@ namespace DecisionTree.Model.Helper
 
             return (q1, q3);
         }
+
+        public static List<double> KvantilniThresholdovi(List<double> vrijednosti, int brojGrupa)
+        {
+            var sortirano = vrijednosti.OrderBy(x => x).ToList();
+            var thresholds = new List<double>();
+
+            for (int i = 1; i < brojGrupa; i++)
+            {
+                double kvantil = i / (double)brojGrupa;
+                int indeks = (int)(kvantil * sortirano.Count);
+                thresholds.Add(sortirano[indeks]);
+            }
+
+            return thresholds.Distinct().ToList();
+        }
     }
 }
